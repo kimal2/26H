@@ -1,0 +1,30 @@
+# dot files
+/.vscode/launch.json
+/.settings
+/.eide/log
+/.eide.usr.ctx.json
+
+# project out
+/build
+/bin
+/obj
+/out
+
+# Keil build artifacts
+/26H/*.axf
+/26H/*.build_log.htm
+/26H/*.crf
+/26H/*.d
+/26H/*.dep
+/26H/*.hex
+/26H/*.htm
+/26H/*.lnp
+/26H/*.map
+/26H/*.o
+/26H/*.sct
+/*.lst
+/*.s
+
+# eide template
+*.ept
+*.eide-template
