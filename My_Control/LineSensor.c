@@ -20,14 +20,19 @@ static uint8_t LineSensor_CountBlack(uint8_t bits)
     return count;
 }
 
-void LineSensor_Init(void)
+uint8_t LineSensor_Init(void)
 {
-    (void)GraySensor_Init(&gray_sensor);
+    return GraySensor_Init(&gray_sensor);
 }
 
 void LineSensor_Scan(void)
 {
     (void)GraySensor_GetDigital(&gray_sensor);
+}
+
+uint8_t LineSensor_GetBit(void)
+{
+    return gray_sensor.digital;
 }
 
 int8_t LineSensor_Get_Err(void)

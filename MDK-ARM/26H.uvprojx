@@ -311,7 +311,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>4</Optim>
+            <Optim>1</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -1475,6 +1475,26 @@
               <FileType>5</FileType>
               <FilePath>..\My_Drivers\encoder.h</FilePath>
             </File>
+            <File>
+              <FileName>Emm_V5.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\My_Drivers\Emm_V5.c</FilePath>
+            </File>
+            <File>
+              <FileName>Emm_V5.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\My_Drivers\Emm_V5.h</FilePath>
+            </File>
+            <File>
+              <FileName>My_UartProc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\My_Drivers\My_UartProc.c</FilePath>
+            </File>
+            <File>
+              <FileName>My_UartProc.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\My_Drivers\My_UartProc.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1509,6 +1529,16 @@
               <FileName>pid.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\My_Control\pid.h</FilePath>
+            </File>
+            <File>
+              <FileName>StepMotor_Ctrl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\My_Control\StepMotor_Ctrl.c</FilePath>
+            </File>
+            <File>
+              <FileName>StepMotor_Ctrl.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\My_Control\StepMotor_Ctrl.h</FilePath>
             </File>
           </Files>
         </Group>

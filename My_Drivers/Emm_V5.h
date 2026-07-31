@@ -84,14 +84,8 @@ void Emm_V5_En_Control(StepMotor_t *M, bool state, bool snF);
 void Emm_V5_Vel_Control(StepMotor_t *M, uint8_t dir, uint16_t vel, uint8_t acc, bool snF);
 // 位置模式控制
 void Emm_V5_Pos_Control(StepMotor_t *M, uint8_t dir, uint16_t vel, uint8_t acc, uint32_t clk, uint8_t raF, bool snF);
-// 设置快速位置模式的运行参数
-void Emm_V5_Set_QPos_Params(StepMotor_t *M, uint16_t vel, uint8_t acc, uint8_t raF, bool snF);
-// 快速位置模式控制
-void Emm_V5_QPos_Control(StepMotor_t *M, int32_t clk);
 // 立即单电机停止运动
 void Emm_V5_Stop_Now(StepMotor_t *M, bool snF);
-// 多机同步开始运动
-void Emm_V5_Synchronous_motion(StepMotor_t *M);
 /**********************************************************
 *** 原点返回功能
 **********************************************************/
@@ -102,71 +96,12 @@ void Emm_V5_Origin_Trigger_Return(StepMotor_t *M, uint8_t o_mode, bool snF);
 // 强制中断并退出回零
 void Emm_V5_Origin_Interrupt(StepMotor_t *M);
 // 读取回零参数
-void Emm_V5_Origin_Read_Params(StepMotor_t *M);
-// 修改回零参数
-void Emm_V5_Origin_Modify_Params(StepMotor_t *M, bool svF, uint8_t o_mode, uint8_t o_dir, uint16_t o_vel, uint32_t o_tm, uint16_t sl_vel, uint16_t sl_ma, uint16_t sl_ms, bool potF);
-// 读取堵转回零返回角度（X42S/Y42）
-void X_V2_Origin_Read_SL_RP(StepMotor_t *M);
-// 修改堵转回零返回角度（X42S/Y42）
-void X_V2_Origin_Modify_SL_RP(StepMotor_t *M, bool svF, uint16_t sl_rp);
 /**********************************************************
 *** 读取系统运行参数
 **********************************************************/
-// 定时返回信息命令（Y42）
-void Emm_V5_Auto_Return_Sys_Params_Timed(StepMotor_t *M, SysParams_t s, uint16_t time_ms);
 // 读取系统参数
 void Emm_V5_Read_Sys_Params(StepMotor_t *M, SysParams_t s);
-/**********************************************************
-*** 读写电机参数功能
-**********************************************************/
-// 修改电机ID地址
-void Emm_V5_Modify_Motor_ID(StepMotor_t *M, bool svF, uint8_t id);
-// 修改细分值
-void Emm_V5_Modify_MicroStep(StepMotor_t *M, bool svF, uint8_t mstep);
-// 修改电机标志
-void Emm_V5_Modify_PDFlag(StepMotor_t *M, bool pdf);
-// 读取选项参数状态（Y42）
-void Emm_V5_Read_Opt_Param_Sta(StepMotor_t *M);
-// 修改电机类型（Y42）
-void Emm_V5_Modify_Motor_Type(StepMotor_t *M, bool svF, bool mottype);
-// 修改固件类型（Y42）
-void Emm_V5_Modify_Firmware_Type(StepMotor_t *M, bool svF, bool fwtype);
-// 修改开环/闭环控制模式（Y42）
-void Emm_V5_Modify_Ctrl_Mode(StepMotor_t *M, bool svF, bool ctrl_mode);
-// 修改电机运动方向（Y42）
-void Emm_V5_Modify_Motor_Dir(StepMotor_t *M, bool svF, bool dir);
-// 修改按键锁定功能（Y42）
-void Emm_V5_Modify_Lock_Btn(StepMotor_t *M, bool svF, bool lockbtn);
-// 修改设置速度值是否缩小10倍输入（Y42）
-void Emm_V5_Modify_S_Vel(StepMotor_t *M, bool svF, bool s_vel);
-// 修改开环模式工作电流
-void Emm_V5_Modify_OM_ma(StepMotor_t *M, bool svF, uint16_t om_ma);
-// 修改闭环模式工作电流
-void Emm_V5_Modify_FOC_mA(StepMotor_t *M, bool svF, uint16_t foc_mA);
-// 获取PID参数
-void Emm_V5_Read_PID_Params(StepMotor_t *M);
-// 修改PID参数
-void Emm_V5_Modify_PID_Params(StepMotor_t *M, bool svF, uint32_t kp, uint32_t ki, uint32_t kd);
-// 读取DMX512协议参数（Y42）
-void Emm_V5_Read_DMX512_Params(StepMotor_t *M);
-// 修改DMX512协议参数（Y42）
-void Emm_V5_Modify_DMX512_Params(StepMotor_t *M, bool svF, uint16_t tch, uint8_t nch, uint8_t mode, uint16_t vel, uint16_t acc, uint16_t vel_step, uint32_t pos_step);
-// 读取位置到达窗口（Y42）
-void Emm_V5_Read_Pos_Window(StepMotor_t *M);
-// 修改位置到达窗口（Y42）
-void Emm_V5_Modify_Pos_Window(StepMotor_t *M, bool svF, uint16_t prw);
-// 读取过热过流保护阈值（Y42）
-void Emm_V5_Read_Otocp(StepMotor_t *M);
-// 修改过热过流保护阈值（Y42）
-void Emm_V5_Modify_Otocp(StepMotor_t *M, bool svF, uint16_t otp, uint16_t ocp, uint16_t time_ms);
-// 读取心跳保护时间（Y42）
-void Emm_V5_Read_Heart_Protect(StepMotor_t *M);
-// 修改心跳保护时间（Y42）
-void Emm_V5_Modify_Heart_Protect(StepMotor_t *M, bool svF, uint32_t hp);
-// 获取积分限幅/衰减系数（Y42）
-void Emm_V5_Read_Integral_Limit(StepMotor_t *M);
-// 修改积分限幅/衰减系数（Y42）
-void Emm_V5_Modify_Integral_Limit(StepMotor_t *M, bool svF, uint32_t il);
+
 /**********************************************************
 *** 获取参数和系统信息
 **********************************************************/

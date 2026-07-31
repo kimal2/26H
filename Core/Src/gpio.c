@@ -77,11 +77,11 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : GRAY_SCL_Pin GRAY_SDA_Pin */
-  GPIO_InitStruct.Pin = GRAY_SCL_Pin|GRAY_SDA_Pin;
+  /*Configure GPIO pins : GRAY_SCL_Pin GRAY_SDA_Pin LED_2_Pin LED_1_Pin */
+  GPIO_InitStruct.Pin = GRAY_SCL_Pin|GRAY_SDA_Pin|LED_2_Pin|LED_1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : GRAY_KEY_Pin */
@@ -90,13 +90,6 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GRAY_KEY_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : LED_2_Pin LED_1_Pin */
-  GPIO_InitStruct.Pin = LED_2_Pin|LED_1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED_4_Pin LED_3_Pin */
   GPIO_InitStruct.Pin = LED_4_Pin|LED_3_Pin;

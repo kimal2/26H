@@ -4,6 +4,9 @@
             "path": "."
         },
         {
+            "path": "../My_Control"
+        },
+        {
             "path": ".."
         }
     ],

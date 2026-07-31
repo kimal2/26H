@@ -12,10 +12,11 @@ typedef enum {
     LINE_TYPE_LOST
 } LineType;
 
-void LineSensor_Init(void);
+uint8_t LineSensor_Init(void);
 void LineSensor_Scan(void);
 LineType LineService_Get_LineType(void);
 int8_t LineSensor_Get_Err(void);
+uint8_t LineSensor_GetBit(void);
 uint8_t LineSensor_Get_BlackNum(void);
 
 #endif

@@ -1,15 +1,34 @@
 #include "soft_i2c.h"
 
-#define SOFT_I2C_DELAY_COUNT 100U
+#define SOFT_I2C_FAST_DELAY_COUNT 50U
 
-static void iic_delay(void)
+static void iic_delay(soft_iic_obj_t *soft_iic_obj)
 {
     volatile uint32_t i;
+    uint32_t start;
+    uint32_t cycles;
 
-    for (i = 0U; i < SOFT_I2C_DELAY_COUNT; i++)
-    {
-        __NOP();
+    if (soft_iic_obj->half_period_us == 0U) {
+        for (i = 0U; i < SOFT_I2C_FAST_DELAY_COUNT; i++) {
+            __NOP();
+        }
+        return;
     }
+
+    start = DWT->CYCCNT;
+    cycles = (SystemCoreClock / 1000000U) * soft_iic_obj->half_period_us;
+    while ((DWT->CYCCNT - start) < cycles) { }
+}
+
+static void IIC_SDA_SetMode(soft_iic_obj_t *soft_iic_obj, uint32_t mode)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    GPIO_InitStruct.Pin = soft_iic_obj->sda_pin;
+    GPIO_InitStruct.Mode = mode;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(soft_iic_obj->sda_port, &GPIO_InitStruct);
 }
 
 static void IIC_GPIO_Init(soft_iic_obj_t *soft_iic_obj)
@@ -68,8 +87,27 @@ void soft_iic_init(soft_iic_obj_t *soft_iic_obj, GPIO_TypeDef *sda_port,
     soft_iic_obj->scl_pin = scl_pin;
 
     soft_iic_obj->addr = addr;
+    soft_iic_obj->half_period_us = 0U;
+
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 
     IIC_GPIO_Init(soft_iic_obj);
+    iic_delay(soft_iic_obj);
+}
+
+void soft_iic_set_half_period_us(soft_iic_obj_t *soft_iic_obj,
+                                 uint32_t half_period_us)
+{
+    if (soft_iic_obj == 0) {
+        return;
+    }
+
+    soft_iic_obj->half_period_us = half_period_us;
+    if (half_period_us != 0U) {
+        CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+        DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    }
 }
 
 void IIC_Start(soft_iic_obj_t *soft_iic_obj)
@@ -77,18 +115,22 @@ void IIC_Start(soft_iic_obj_t *soft_iic_obj)
     /* 当SCL高电平时，SDA出现一个下跳沿表示IIC总线启动信号 */
     iic_sda_1(soft_iic_obj);
     iic_scl_1(soft_iic_obj);
-    iic_delay();
+    iic_delay(soft_iic_obj);
     iic_sda_0(soft_iic_obj);
+    iic_delay(soft_iic_obj);
     iic_scl_0(soft_iic_obj);
+    iic_delay(soft_iic_obj);
 }
 
 void IIC_Stop(soft_iic_obj_t *soft_iic_obj)
 {
     /* 当SCL高电平时，SDA出现一个上跳沿表示IIC总线停止信号 */
     iic_sda_0(soft_iic_obj);
+    iic_delay(soft_iic_obj);
     iic_scl_1(soft_iic_obj);
-    iic_delay();
+    iic_delay(soft_iic_obj);
     iic_sda_1(soft_iic_obj);
+    iic_delay(soft_iic_obj);
 }
 
 void IIC_Send_Byte(soft_iic_obj_t *soft_iic_obj, uint8_t _ucByte)
@@ -106,9 +148,9 @@ void IIC_Send_Byte(soft_iic_obj_t *soft_iic_obj, uint8_t _ucByte)
         {
             iic_sda_0(soft_iic_obj);
         }
-        iic_delay();
+        iic_delay(soft_iic_obj);
         iic_scl_1(soft_iic_obj);
-        iic_delay();
+        iic_delay(soft_iic_obj);
         iic_scl_0(soft_iic_obj);
         if (i == 7)
         {
@@ -124,21 +166,25 @@ uint8_t IIC_Read_Byte(soft_iic_obj_t *soft_iic_obj, uint8_t ack)
     uint8_t i;
     uint8_t value = 0;
 
+    iic_sda_1(soft_iic_obj);
+    IIC_SDA_SetMode(soft_iic_obj, GPIO_MODE_INPUT);
+
     /* 读到第1个bit为数据的bit7 */
     for (i = 0; i < 8; i++)
     {
         value <<= 1;
         iic_scl_1(soft_iic_obj);
-        iic_delay();
+        iic_delay(soft_iic_obj);
         if (HAL_GPIO_ReadPin(soft_iic_obj->sda_port,
                              soft_iic_obj->sda_pin) == GPIO_PIN_SET)
         {
             value |= 0x01U;
         }
         iic_scl_0(soft_iic_obj);
-        iic_delay();
+        iic_delay(soft_iic_obj);
     }
 
+    IIC_SDA_SetMode(soft_iic_obj, GPIO_MODE_OUTPUT_OD);
     if (ack == 0U)
     {
         IIC_NAck(soft_iic_obj);
@@ -155,9 +201,9 @@ uint8_t IIC_Wait_Ack(soft_iic_obj_t *soft_iic_obj)
     uint8_t re;
 
     iic_sda_1(soft_iic_obj);  /* CPU释放SDA总线 */
-    iic_delay();
+    iic_delay(soft_iic_obj);
     iic_scl_1(soft_iic_obj);  /* CPU驱动SCL = 1，此时器件会返回ACK应答 */
-    iic_delay();
+    iic_delay(soft_iic_obj);
     if (HAL_GPIO_ReadPin(soft_iic_obj->sda_port,
                          soft_iic_obj->sda_pin) == GPIO_PIN_SET)
     {
@@ -168,27 +214,27 @@ uint8_t IIC_Wait_Ack(soft_iic_obj_t *soft_iic_obj)
         re = 0;
     }
     iic_scl_0(soft_iic_obj);
-    iic_delay();
+    iic_delay(soft_iic_obj);
     return re;
 }
 
 void IIC_Ack(soft_iic_obj_t *soft_iic_obj)
 {
     iic_sda_0(soft_iic_obj);  /* CPU驱动SDA = 0，发送ACK */
-    iic_delay();
+    iic_delay(soft_iic_obj);
     iic_scl_1(soft_iic_obj);  /* 产生第9个时钟 */
-    iic_delay();
+    iic_delay(soft_iic_obj);
     iic_scl_0(soft_iic_obj);
-    iic_delay();
+    iic_delay(soft_iic_obj);
     iic_sda_1(soft_iic_obj);  /* 释放SDA总线 */
 }
 
 void IIC_NAck(soft_iic_obj_t *soft_iic_obj)
 {
     iic_sda_1(soft_iic_obj);  /* CPU释放SDA，发送NACK */
-    iic_delay();
+    iic_delay(soft_iic_obj);
     iic_scl_1(soft_iic_obj);  /* 产生第9个时钟 */
-    iic_delay();
+    iic_delay(soft_iic_obj);
     iic_scl_0(soft_iic_obj);
-    iic_delay();
+    iic_delay(soft_iic_obj);
 }

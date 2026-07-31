@@ -25,7 +25,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "OLED.h"
+#include "mpu6050.h"
+#include "LineSensor.h" 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,6 +47,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
+
+
 
 /* USER CODE END Variables */
 /* Definitions for GrayTrackTask */
@@ -87,6 +91,12 @@ void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
+  HAL_Delay(500);
+  OLED_Init();
+
+  MPU6050_Init(&imu);
+  MPU6050_CalibrateGyro(&imu,500);
+
 
   /* USER CODE END Init */
 

@@ -1,10 +1,11 @@
-#ifndef __MYUART_H
-#define __MYUART_H
+#ifndef MY_UART_PROC_H
+#define MY_UART_PROC_H
 
-#include "usart.h"
+#include "stm32f4xx_hal.h"
 
-void UartReceiveStart(void);
-void UART_IdleHandler(UART_HandleTypeDef *huart);
-void UartBuffTask(uint8_t time);
+/* Camera sends one uint16_t X coordinate in little-endian binary format. */
+#define CAMERA_X_BIG_ENDIAN    0U
+
+HAL_StatusTypeDef UartReceiveStart(void);
 
 #endif

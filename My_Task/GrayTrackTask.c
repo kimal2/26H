@@ -8,7 +8,9 @@ void StartGrayTrackTask(void *argument)
 {
     (void)argument;
 
-    LineSensor_Init();
+    while (LineSensor_Init() != 0U) {
+        osDelay(1U);
+    }
     Tracking_Init();
 
     for (;;) {

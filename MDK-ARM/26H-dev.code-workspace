@@ -13,6 +13,10 @@
             "path": "../My_Drivers"
         },
         {
+            "name": "My_Control",
+            "path": "../My_Control"
+        },
+        {
             "name": "My_Task",
             "path": "../My_Task"
         },
@@ -31,6 +35,7 @@
             "${workspaceFolder:MDK-ARM}/../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2",
             "${workspaceFolder:MDK-ARM}/../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F",
             "${workspaceFolder:MDK-ARM}/../My_Drivers",
+            "${workspaceFolder:MDK-ARM}/../My_Control",
             "${workspaceFolder:MDK-ARM}/../My_Task",
             "D:/Keil5/ARM/ARMCC/include"
         ],

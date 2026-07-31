@@ -3,10 +3,10 @@
 #include <math.h>
 
 #define MPU6050_SDA_GPIO_PORT        GPIOA
-#define MPU6050_SDA_PIN              GPIO_PIN_3
+#define MPU6050_SDA_PIN              GPIO_PIN_4
 
 #define MPU6050_SCL_GPIO_PORT        GPIOA
-#define MPU6050_SCL_PIN              GPIO_PIN_4
+#define MPU6050_SCL_PIN              GPIO_PIN_3
 
 #define MPU6050_I2C_WRITE_ADDR       0xD0U
 #define MPU6050_WHO_AM_I_VALUE       0x68U
@@ -140,26 +140,35 @@ uint8_t MPU6050_Init(MPU6050_t *dev)
                   MPU6050_SCL_GPIO_PORT, MPU6050_SCL_PIN,
                   MPU6050_I2C_WRITE_ADDR);
 
-    HAL_Delay(10U);
-    if (MPU6050_WhoAmI(dev) != MPU6050_WHO_AM_I_VALUE) {
-        return 1U;
-    }
-
     if (MPU6050_WriteReg(dev, MPU6050_REG_PWR_MGMT_1, 0x80U) != 0U) {
         return 1U;
     }
     HAL_Delay(100U);
 
-    if ((MPU6050_WriteReg(dev, MPU6050_REG_PWR_MGMT_1, 0x01U) != 0U) ||
-        (MPU6050_WriteReg(dev, MPU6050_REG_PWR_MGMT_2, 0x00U) != 0U) ||
-        (MPU6050_WriteReg(dev, MPU6050_REG_SMPLRT_DIV, 0x07U) != 0U) ||
-        (MPU6050_WriteReg(dev, MPU6050_REG_CONFIG, 0x03U) != 0U) ||
-        (MPU6050_WriteReg(dev, MPU6050_REG_GYRO_CONFIG, 0x18U) != 0U) ||
+    if (MPU6050_WriteReg(dev, MPU6050_REG_PWR_MGMT_1, 0x00U) != 0U) {
+        return 1U;
+    }
+    HAL_Delay(100U);
+
+    if ((MPU6050_WriteReg(dev, MPU6050_REG_GYRO_CONFIG, 0x18U) != 0U) ||
         (MPU6050_WriteReg(dev, MPU6050_REG_ACCEL_CONFIG, 0x00U) != 0U) ||
+        (MPU6050_WriteReg(dev, MPU6050_REG_SMPLRT_DIV, 0x07U) != 0U) ||
+        (MPU6050_WriteReg(dev, MPU6050_REG_CONFIG, 0x00U) != 0U) ||
         (MPU6050_WriteReg(dev, MPU6050_REG_INT_ENABLE, 0x00U) != 0U) ||
         (MPU6050_WriteReg(dev, MPU6050_REG_USER_CTRL, 0x00U) != 0U) ||
         (MPU6050_WriteReg(dev, MPU6050_REG_FIFO_ENABLE, 0x00U) != 0U) ||
         (MPU6050_WriteReg(dev, MPU6050_REG_INT_PIN_CFG, 0x80U) != 0U)) {
+        return 1U;
+    }
+
+    if (MPU6050_WhoAmI(dev) != MPU6050_WHO_AM_I_VALUE) {
+        return 1U;
+    }
+
+    if ((MPU6050_WriteReg(dev, MPU6050_REG_PWR_MGMT_1, 0x01U) != 0U) ||
+        (MPU6050_WriteReg(dev, MPU6050_REG_PWR_MGMT_2, 0x00U) != 0U) ||
+        (MPU6050_WriteReg(dev, MPU6050_REG_SMPLRT_DIV, 0x07U) != 0U) ||
+        (MPU6050_WriteReg(dev, MPU6050_REG_CONFIG, 0x00U) != 0U)) {
         return 1U;
     }
 
