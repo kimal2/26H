@@ -57,6 +57,36 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define KEY_3_Pin GPIO_PIN_2
+#define KEY_3_GPIO_Port GPIOE
+#define KEY_4_Pin GPIO_PIN_3
+#define KEY_4_GPIO_Port GPIOE
+#define MPU_SCL_Pin GPIO_PIN_3
+#define MPU_SCL_GPIO_Port GPIOA
+#define MPU_SDA_Pin GPIO_PIN_4
+#define MPU_SDA_GPIO_Port GPIOA
+#define GRAY_SCL_Pin GPIO_PIN_4
+#define GRAY_SCL_GPIO_Port GPIOC
+#define GRAY_SDA_Pin GPIO_PIN_5
+#define GRAY_SDA_GPIO_Port GPIOC
+#define GRAY_KEY_Pin GPIO_PIN_15
+#define GRAY_KEY_GPIO_Port GPIOD
+#define LED_2_Pin GPIO_PIN_8
+#define LED_2_GPIO_Port GPIOC
+#define LED_1_Pin GPIO_PIN_9
+#define LED_1_GPIO_Port GPIOC
+#define LED_4_Pin GPIO_PIN_4
+#define LED_4_GPIO_Port GPIOD
+#define LED_3_Pin GPIO_PIN_6
+#define LED_3_GPIO_Port GPIOD
+#define OLED_SDA_Pin GPIO_PIN_8
+#define OLED_SDA_GPIO_Port GPIOB
+#define OLED_SCL_Pin GPIO_PIN_9
+#define OLED_SCL_GPIO_Port GPIOB
+#define KEY_1_Pin GPIO_PIN_0
+#define KEY_1_GPIO_Port GPIOE
+#define KEY_2_Pin GPIO_PIN_1
+#define KEY_2_GPIO_Port GPIOE
 
 /* USER CODE BEGIN Private defines */
 

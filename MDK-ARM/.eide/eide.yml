@@ -26,6 +26,9 @@ virtualFolder:
                 - path: ../Core/Src/stm32f4xx_it.c
                 - path: ../Core/Src/stm32f4xx_hal_msp.c
                 - path: ../Core/Src/stm32f4xx_hal_timebase_tim.c
+                - path: ../Core/Src/dma.c
+                - path: ../Core/Src/tim.c
+                - path: ../Core/Src/usart.c
               folders: []
     - name: Drivers
       files: []
@@ -47,6 +50,7 @@ virtualFolder:
             - path: ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c
             - path: ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c
             - path: ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c
+            - path: ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c
           folders: []
         - name: CMSIS
           files:
@@ -74,10 +78,31 @@ virtualFolder:
         - path: ../My_Drivers/soft_i2c.c
         - path: ../My_Drivers/mpu6050.c
         - path: ../My_Drivers/mpu6050.h
+        - path: ../My_Drivers/graysensor.c
+        - path: ../My_Drivers/graysensor.h
+        - path: ../My_Drivers/gw_grayscale_sensor.h
+        - path: ../My_Drivers/motor.c
+        - path: ../My_Drivers/motor.h
+        - path: ../My_Drivers/encoder.c
+        - path: ../My_Drivers/encoder.h
+      folders: []
+    - name: My_Control
+      files:
+        - path: ../My_Control/LineSensor.c
+        - path: ../My_Control/LineSensor.h
+        - path: ../My_Control/linetrack.c
+        - path: ../My_Control/linetrack.h
+        - path: ../My_Control/pid.c
+        - path: ../My_Control/pid.h
       folders: []
     - name: My_Task
       files:
-        - path: ../My_Task/PIDTask.c
+        - path: ../My_Task/DisplayTask.c
+        - path: ../My_Task/DisplayTask.h
+        - path: ../My_Task/GrayTrackTask.c
+        - path: ../My_Task/GrayTrackTask.h
+        - path: ../My_Task/TubeTask.c
+        - path: ../My_Task/TubeTask.h
       folders: []
     - name: ::CMSIS
       files: []
@@ -102,6 +127,7 @@ targets:
         - ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2
         - ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F
         - ../My_Drivers
+        - ../My_Control
         - ../My_Task
         - .cmsis/include
         - RTE/_26H
