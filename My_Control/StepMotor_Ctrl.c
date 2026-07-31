@@ -6,6 +6,12 @@
 #define STEPMOTOR_ABSOLUTE_POSITION_MODE      1U
 
 StepMotor_t WaterTubeMotor;
+StepMotorTune_t StepMotorTune = {
+    .ball_kp = STEPMOTOR_PID_KP,
+    .ball_ki = STEPMOTOR_PID_KI,
+    .ball_kd = STEPMOTOR_PID_KD,
+    .ball_kff = STEPMOTOR_FEEDFORWARD_KFF,
+};
 
 static PID_t BallPositionPID = {
     .Kp = STEPMOTOR_PID_KP,
@@ -25,6 +31,8 @@ static uint32_t processed_sample_sequence;
 static uint32_t homing_start_tick;
 static float target_tube_angle_deg;
 static float last_sent_tube_angle_deg;
+static float ball_feedback_angle_deg;
+static volatile float feedforward_acceleration_g;
 static bool target_angle_valid;
 static bool command_sent;
 
@@ -98,6 +106,8 @@ void StepMotor_Init(void)
     processed_sample_sequence = 0U;
     target_tube_angle_deg = 0.0f;
     last_sent_tube_angle_deg = 0.0f;
+    ball_feedback_angle_deg = 0.0f;
+    feedforward_acceleration_g = 0.0f;
     target_angle_valid = false;
     command_sent = false;
 
@@ -116,6 +126,11 @@ void StepMotor_SetBallX(uint16_t ball_x)
 
     latest_ball_x = ball_x;
     ball_sample_sequence++;
+}
+
+void StepMotor_SetFeedforwardAcceleration(float acceleration_g)
+{
+    feedforward_acceleration_g = acceleration_g;
 }
 
 void StepMotor_SetTubeAngle(float tube_angle_deg)
@@ -148,11 +163,18 @@ void StepMotor_Task(void)
         ball_x = latest_ball_x;
         processed_sample_sequence = sample_sequence;
 
+        BallPositionPID.Kp = StepMotorTune.ball_kp;
+        BallPositionPID.Ki = StepMotorTune.ball_ki;
+        BallPositionPID.Kd = StepMotorTune.ball_kd;
         BallPositionPID.target = (float)STEPMOTOR_CAMERA_CENTER_X;
         BallPositionPID.actual = (float)ball_x;
         PID_Calc(&BallPositionPID);
-        StepMotor_SetTubeAngle(BallPositionPID.output);
+        ball_feedback_angle_deg = BallPositionPID.output;
     }
+
+    StepMotor_SetTubeAngle(ball_feedback_angle_deg +
+                           StepMotorTune.ball_kff *
+                               feedforward_acceleration_g);
 
     StepMotor_SendTargetAngle();
 }

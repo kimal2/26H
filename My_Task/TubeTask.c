@@ -20,7 +20,9 @@ void StartTubeTask(void *argument)
 
 __weak void TubeTask_Process(void)
 {
-    StepMotor_Task();
+    Bluetooth_Process();
     MPU6050_ReadAll(&imu);
     MPU6050_ComputeAttitude(&imu,0.01f);
+    StepMotor_SetFeedforwardAcceleration(imu.acc.x);
+    StepMotor_Task();
 }

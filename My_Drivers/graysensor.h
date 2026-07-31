@@ -4,10 +4,8 @@
 #include <stdint.h>
 
 #include "gw_grayscale_sensor.h"
-#include "soft_i2c.h"
 
 typedef struct {
-    soft_iic_obj_t i2c;
     uint8_t digital;
     uint8_t data_valid;
     uint8_t init_ok;

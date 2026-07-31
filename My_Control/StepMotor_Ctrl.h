@@ -11,7 +11,7 @@
 #define STEPMOTOR_HOME_MODE                   0U
 #define STEPMOTOR_HOME_WAIT_MS                1000U
 #define STEPMOTOR_RUN_SPEED_RPM               120U
-#define STEPMOTOR_RUN_ACCELERATION            30U
+#define STEPMOTOR_RUN_ACCELERATION            0U
 #define STEPMOTOR_POSITIVE_DIRECTION          0U
 
 #define STEPMOTOR_CAMERA_CENTER_X             160U
@@ -25,6 +25,14 @@
 #define STEPMOTOR_PID_KP                      0.05f
 #define STEPMOTOR_PID_KI                      0.0f
 #define STEPMOTOR_PID_KD                      0.0f
+#define STEPMOTOR_FEEDFORWARD_KFF             0.0f
+
+typedef struct {
+    volatile float ball_kp;
+    volatile float ball_ki;
+    volatile float ball_kd;
+    volatile float ball_kff;
+} StepMotorTune_t;
 
 typedef enum {
     STEPMOTOR_STATE_UNINITIALIZED = 0,
@@ -33,9 +41,11 @@ typedef enum {
 } StepMotorControlState_t;
 
 extern StepMotor_t WaterTubeMotor;
+extern StepMotorTune_t StepMotorTune;
 
 void StepMotor_Init(void);
 void StepMotor_SetBallX(uint16_t ball_x);
+void StepMotor_SetFeedforwardAcceleration(float acceleration_g);
 void StepMotor_SetTubeAngle(float tube_angle_deg);
 void StepMotor_Task(void);
 

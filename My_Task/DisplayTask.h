@@ -5,5 +5,6 @@
 
 void StartDisplayTask(void *argument);
 void DisplayTask_Process(void);
+void DisplayTask_ReportTrackingFinished(void);
 
 #endif

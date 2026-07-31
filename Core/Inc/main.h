@@ -69,8 +69,10 @@ void Error_Handler(void);
 #define GRAY_SCL_GPIO_Port GPIOC
 #define GRAY_SDA_Pin GPIO_PIN_5
 #define GRAY_SDA_GPIO_Port GPIOC
-#define GRAY_KEY_Pin GPIO_PIN_15
-#define GRAY_KEY_GPIO_Port GPIOD
+#define GRAY_KEY_Pin GPIO_PIN_1
+#define GRAY_KEY_GPIO_Port GPIOB
+#define GRAY_KEYD15_Pin GPIO_PIN_15
+#define GRAY_KEYD15_GPIO_Port GPIOD
 #define LED_2_Pin GPIO_PIN_8
 #define LED_2_GPIO_Port GPIOC
 #define LED_1_Pin GPIO_PIN_9

@@ -85,6 +85,18 @@ void Emm_V5_Vel_Control(StepMotor_t *M,
     Emm_V5_Send(M, 8U);
 }
 
+
+/**
+  * @brief    位置模式
+  * @param    addr：电机地址
+  * @param    dir ：方向        ，0为CW，其余值为CCW
+  * @param    vel ：速度(RPM)   ，范围0 - 5000RPM
+  * @param    acc ：加速度      ，范围0 - 255，注意：0是直接启动
+  * @param    clk ：脉冲数      ，范围0- (2^32 - 1)个
+  * @param    raF ：运动标志，0为相对上一输入目标位置进行相对位置运动，1为绝对值运动
+  * @param    snF ：多机同步标志 ，false为不启用，true为启用
+  * @retval   地址 + 功能码 + 命令状态 + 校验字节
+  */
 void Emm_V5_Pos_Control(StepMotor_t *M,
                         uint8_t dir,
                         uint16_t vel,

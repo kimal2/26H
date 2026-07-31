@@ -1,6 +1,7 @@
 #include "GrayTrackTask.h"
 
 #include "cmsis_os2.h"
+#include "DisplayTask.h"
 #include "LineSensor.h"
 #include "linetrack.h"
 
@@ -21,5 +22,8 @@ void StartGrayTrackTask(void *argument)
 
 __weak void GrayTrackTask_Process(void)
 {
-    (void)Tracking_Update();
+    if (Tracking_Update() == TRACK_EVENT_FINISH_LINE) {
+        Tracking_Stop();
+        DisplayTask_ReportTrackingFinished();
+    }
 }

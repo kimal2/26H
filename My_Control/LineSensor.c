@@ -3,7 +3,7 @@
 #include "graysensor.h"
 
 static const int8_t line_error_table[8] = {
-    -20, -10, -5, -1, 1, 5, 10, 20
+    -7, -5, -3, -1, 1, 3, 5, 7
 };
 
 static uint8_t LineSensor_CountBlack(uint8_t bits)

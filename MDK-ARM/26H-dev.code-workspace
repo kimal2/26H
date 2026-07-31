@@ -43,7 +43,8 @@
             "USE_HAL_DRIVER",
             "STM32F407xx",
             "__CC_ARM",
-            "__arm__"
+            "__arm__",
+            "__weak="
         ],
         "C_Cpp.default.cStandard": "c99"
     },

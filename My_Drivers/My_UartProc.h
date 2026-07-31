@@ -4,8 +4,9 @@
 #include "stm32f4xx_hal.h"
 
 /* Camera sends one uint16_t X coordinate in little-endian binary format. */
-#define CAMERA_X_BIG_ENDIAN    0U
+#define CAMERA_X_BIG_ENDIAN    1U
 
 HAL_StatusTypeDef UartReceiveStart(void);
+void Bluetooth_Process(void);
 
 #endif

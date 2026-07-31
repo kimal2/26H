@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f5f4">
+  <title>26H 串口调参</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f5f4;
+      --surface: #ffffff;
+      --ink: #17201b;
+      --muted: #66716b;
+      --border: #d6ddd9;
+      --green: #167447;
+      --green-dark: #0f5735;
+      --blue: #245b9c;
+      --red: #ad3838;
+      --shadow: 0 1px 2px rgba(20, 35, 27, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
+      letter-spacing: 0;
+    }
+
+    button, input, select { font: inherit; }
+
+    button, select, input[type="number"] {
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--ink);
+    }
+
+    button {
+      padding: 0 14px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    button:disabled { cursor: not-allowed; opacity: 0.48; }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid rgba(36, 91, 156, 0.2);
+      outline-offset: 1px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--border);
+      background: rgba(243, 245, 244, 0.96);
+      backdrop-filter: blur(10px);
+    }
+
+    .topbar-inner, main {
+      width: min(100%, 980px);
+      margin: 0 auto;
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+    }
+
+    .topbar-inner {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 760;
+      letter-spacing: 0;
+    }
+
+    .connection-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #929b96;
+      box-shadow: 0 0 0 3px rgba(102, 113, 107, 0.12);
+    }
+
+    .status-dot.connected {
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(22, 116, 71, 0.14);
+    }
+
+    main { padding-top: 18px; padding-bottom: calc(28px + env(safe-area-inset-bottom)); }
+
+    .connection-panel {
+      display: grid;
+      grid-template-columns: minmax(210px, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+      padding: 16px 0 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    label.field-label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    select { width: 100%; padding: 0 12px; }
+
+    .primary {
+      border-color: var(--green);
+      background: var(--green);
+      color: white;
+    }
+
+    .primary:hover:not(:disabled) { background: var(--green-dark); }
+    .secondary:hover:not(:disabled) { border-color: #aeb8b2; background: #f8faf9; }
+
+    .support-note {
+      grid-column: 1 / -1;
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .support-note.error { color: var(--red); }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 0;
+    }
+
+    .toggle {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      user-select: none;
+    }
+
+    .toggle input { width: 18px; height: 18px; accent-color: var(--green); }
+
+    .parameter-group {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .group-heading {
+      margin: 0;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #f8faf9;
+      font-size: 15px;
+      font-weight: 760;
+      letter-spacing: 0;
+    }
+
+    .parameter-row {
+      display: grid;
+      grid-template-columns: 150px minmax(180px, 1fr) 92px 54px;
+      gap: 12px;
+      align-items: center;
+      min-height: 68px;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e8ecea;
+    }
+
+    .parameter-row:last-child { border-bottom: 0; }
+
+    .parameter-name { min-width: 0; }
+    .parameter-name strong { display: block; font-size: 14px; }
+    .parameter-name code { color: var(--muted); font-size: 12px; }
+
+    input[type="range"] {
+      width: 100%;
+      height: 32px;
+      margin: 0;
+      accent-color: var(--green);
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 0 8px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .send-one {
+      padding: 0;
+      color: var(--blue);
+      font-size: 13px;
+    }
+
+    .console-section { margin-top: 18px; }
+    .console-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .console-heading h2 { margin: 0; font-size: 15px; letter-spacing: 0; }
+    .clear-button { min-height: 34px; padding: 0 10px; color: var(--muted); font-size: 13px; }
+
+    .console {
+      height: 150px;
+      overflow: auto;
+      margin: 0;
+      padding: 12px;
+      border: 1px solid #27322c;
+      border-radius: 6px;
+      background: #18201c;
+      color: #dce9e1;
+      font: 13px/1.55 ui-monospace, "SFMono-Regular", Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    @media (max-width: 680px) {
+      .topbar-inner { min-height: 58px; }
+      h1 { font-size: 18px; }
+      .connection-panel { grid-template-columns: 1fr; }
+      .connection-panel button { width: 100%; }
+      .parameter-row {
+        grid-template-columns: minmax(0, 1fr) 88px 50px;
+        gap: 8px;
+        min-height: 88px;
+      }
+      .parameter-name { grid-column: 1 / 2; }
+      .parameter-row input[type="range"] { grid-column: 1 / -1; grid-row: 2; }
+      .parameter-row input[type="number"] { grid-column: 2; grid-row: 1; }
+      .send-one { grid-column: 3; grid-row: 1; }
+      .toolbar .toggle { width: 100%; margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <h1>26H 串口调参</h1>
+      <div class="connection-state" aria-live="polite">
+        <span id="statusDot" class="status-dot"></span>
+        <span id="statusText">未连接</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="connection-panel" aria-label="串口连接">
+      <label class="field-label">
+        波特率
+        <select id="baudSelect">
+          <option value="9600">9600</option>
+          <option value="38400">38400</option>
+          <option value="57600">57600</option>
+          <option value="115200" selected>115200</option>
+        </select>
+      </label>
+      <button id="connectButton" class="primary" type="button">选择串口</button>
+      <p id="supportNote" class="support-note">请使用电脑端 Chrome 或 Edge，点击“选择串口”后选择对应 COM 口。</p>
+    </section>
+
+    <div class="toolbar">
+      <button id="sendAllButton" class="primary" type="button" disabled>发送全部</button>
+      <button id="resetButton" class="secondary" type="button">恢复默认值</button>
+      <label class="toggle"><input id="autoSend" type="checkbox" checked> 滑块松手自动发送</label>
+    </div>
+
+    <div id="parameterGroups"></div>
+
+    <section class="console-section" aria-label="通信记录">
+      <div class="console-heading">
+        <h2>通信记录</h2>
+        <button id="clearButton" class="clear-button" type="button">清空</button>
+      </div>
+      <pre id="console" class="console" aria-live="polite">等待连接...</pre>
+    </section>
+  </main>
+
+  <script>
+    const parameters = [
+      { group: "循迹 PID", label: "比例", key: "line_kp", min: -20, max: 20, step: 0.1, value: 2 },
+      { group: "循迹 PID", label: "积分", key: "line_ki", min: -5, max: 5, step: 0.01, value: 0 },
+      { group: "循迹 PID", label: "微分", key: "line_kd", min: -20, max: 20, step: 0.1, value: 3 },
+      { group: "小车输出", label: "基础 PWM", key: "base_pwm", min: 0, max: 100, step: 1, value: 35 },
+      { group: "小车输出", label: "转弯 PWM", key: "turn_pwm", min: 0, max: 100, step: 1, value: 35 },
+      { group: "小车输出", label: "最大差速", key: "line_max", min: 0, max: 100, step: 1, value: 30 },
+      { group: "滚球 PID", label: "比例", key: "ball_kp", min: -2, max: 2, step: 0.01, value: 0.05 },
+      { group: "滚球 PID", label: "积分", key: "ball_ki", min: -2, max: 2, step: 0.01, value: 0 },
+      { group: "滚球 PID", label: "微分", key: "ball_kd", min: -2, max: 2, step: 0.01, value: 0 },
+      { group: "MPU6050 前馈", label: "X 轴前馈", key: "ball_kff", min: -20, max: 20, step: 0.1, value: 0 }
+    ];
+
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const parameterDecimals = 3;
+    const values = new Map();
+    let serialPort = null;
+    let serialReader = null;
+    let serialReadTask = null;
+    let serialReading = false;
+    let disconnecting = false;
+    let receiveBuffer = "";
+    let sendQueue = Promise.resolve();
+
+    const statusDot = document.getElementById("statusDot");
+    const statusText = document.getElementById("statusText");
+    const connectButton = document.getElementById("connectButton");
+    const sendAllButton = document.getElementById("sendAllButton");
+    const supportNote = document.getElementById("supportNote");
+    const consoleElement = document.getElementById("console");
+
+    function formatValue(parameter, value) {
+      return Number(value).toFixed(parameterDecimals);
+    }
+
+    function setConnected(connected, name = "") {
+      statusDot.classList.toggle("connected", connected);
+      statusText.textContent = connected ? `已连接 ${name}` : "未连接";
+      connectButton.textContent = connected ? "断开串口" : "选择串口";
+      document.getElementById("baudSelect").disabled = connected;
+      sendAllButton.disabled = !connected;
+      document.querySelectorAll(".send-one").forEach(button => {
+        button.disabled = !connected;
+      });
+    }
+
+    function logLine(direction, text) {
+      if (consoleElement.textContent === "等待连接...") consoleElement.textContent = "";
+      const time = new Date().toLocaleTimeString([], { hour12: false });
+      consoleElement.textContent += `${time} ${direction} ${text}\n`;
+      const lines = consoleElement.textContent.split("\n");
+      if (lines.length > 80) consoleElement.textContent = lines.slice(-80).join("\n");
+      consoleElement.scrollTop = consoleElement.scrollHeight;
+    }
+
+    function renderParameters() {
+      const container = document.getElementById("parameterGroups");
+      const groups = [...new Set(parameters.map(item => item.group))];
+      container.textContent = "";
+
+      for (const groupName of groups) {
+        const section = document.createElement("section");
+        section.className = "parameter-group";
+        section.innerHTML = `<h2 class="group-heading">${groupName}</h2>`;
+
+        for (const parameter of parameters.filter(item => item.group === groupName)) {
+          const savedValue = localStorage.getItem(`26h.${parameter.key}`);
+          const initialValue = savedValue === null ? parameter.value : Number(savedValue);
+          values.set(parameter.key, initialValue);
+
+          const row = document.createElement("div");
+          row.className = "parameter-row";
+          row.innerHTML = `
+            <div class="parameter-name"><strong>${parameter.label}</strong><code>${parameter.key}</code></div>
+            <input class="range-input" type="range" min="${parameter.min}" max="${parameter.max}" step="${parameter.step}" value="${initialValue}" aria-label="${parameter.label}">
+            <input class="number-input" type="number" min="${parameter.min}" max="${parameter.max}" step="${parameter.step}" value="${formatValue(parameter, initialValue)}" aria-label="${parameter.label}数值">
+            <button class="send-one" type="button">发送</button>`;
+
+          const range = row.querySelector(".range-input");
+          const number = row.querySelector(".number-input");
+          const sendButton = row.querySelector(".send-one");
+          sendButton.disabled = !serialPort?.writable || disconnecting;
+
+          const update = rawValue => {
+            const nextValue = Math.min(parameter.max, Math.max(parameter.min, Number(rawValue)));
+            values.set(parameter.key, nextValue);
+            range.value = String(nextValue);
+            number.value = formatValue(parameter, nextValue);
+            localStorage.setItem(`26h.${parameter.key}`, String(nextValue));
+          };
+
+          range.addEventListener("input", () => update(range.value));
+          range.addEventListener("change", () => {
+            if (document.getElementById("autoSend").checked && serialPort?.writable) {
+              sendParameter(parameter.key);
+            }
+          });
+          number.addEventListener("change", () => {
+            update(number.value);
+            if (document.getElementById("autoSend").checked && serialPort?.writable) {
+              sendParameter(parameter.key);
+            }
+          });
+          sendButton.addEventListener("click", () => sendParameter(parameter.key));
+          section.appendChild(row);
+        }
+        container.appendChild(section);
+      }
+    }
+
+    async function writeText(text) {
+      if (!serialPort?.writable || disconnecting) throw new Error("串口尚未连接");
+      const writer = serialPort.writable.getWriter();
+      try {
+        await writer.write(encoder.encode(text));
+      } finally {
+        writer.releaseLock();
+      }
+      logLine("TX", text);
+    }
+
+    function enqueueText(text) {
+      sendQueue = sendQueue.then(() => writeText(text)).catch(error => {
+        logLine("ERR", error.message || String(error));
+      });
+      return sendQueue;
+    }
+
+    function sendParameter(key) {
+      const parameter = parameters.find(item => item.key === key);
+      if (!parameter) return Promise.resolve();
+      const command = `[${key},${formatValue(parameter, values.get(key))}]`;
+      return enqueueText(command);
+    }
+
+    async function sendAll() {
+      for (const parameter of parameters) await sendParameter(parameter.key);
+    }
+
+    function handleReceivedText(text) {
+      receiveBuffer += text;
+      while (receiveBuffer.length > 0) {
+        const bracketEnd = receiveBuffer.indexOf("]");
+        const lineMatch = receiveBuffer.match(/[\r\n]/);
+        const lineEnd = lineMatch ? lineMatch.index : -1;
+        let end = -1;
+
+        if (bracketEnd >= 0 && (lineEnd < 0 || bracketEnd < lineEnd)) end = bracketEnd + 1;
+        else if (lineEnd >= 0) end = lineEnd;
+        else break;
+
+        const message = receiveBuffer.slice(0, end).trim();
+        receiveBuffer = receiveBuffer.slice(end).replace(/^[\r\n]+/, "");
+        if (message) logLine("RX", message);
+      }
+
+      if (receiveBuffer.length > 256) {
+        logLine("RX", receiveBuffer);
+        receiveBuffer = "";
+      }
+    }
+
+    async function readSerial(port) {
+      serialReading = true;
+      try {
+        while (serialReading && port.readable) {
+          const reader = port.readable.getReader();
+          serialReader = reader;
+          try {
+            while (serialReading) {
+              const { value, done } = await reader.read();
+              if (done) {
+                serialReading = false;
+                break;
+              }
+              if (value) handleReceivedText(decoder.decode(value, { stream: true }));
+            }
+          } finally {
+            reader.releaseLock();
+            if (serialReader === reader) serialReader = null;
+          }
+        }
+      } catch (error) {
+        if (serialReading) logLine("ERR", error.message || String(error));
+      } finally {
+        serialReading = false;
+      }
+    }
+
+    async function disconnectSerial(deviceRemoved = false) {
+      if (!serialPort || disconnecting) return;
+      disconnecting = true;
+      const port = serialPort;
+      serialPort = null;
+      serialReading = false;
+      setConnected(false);
+
+      try {
+        await sendQueue;
+        if (serialReader) await serialReader.cancel();
+        if (serialReadTask) await serialReadTask;
+        await port.close();
+      } catch (error) {
+        if (!deviceRemoved) logLine("ERR", error.message || String(error));
+      } finally {
+        if (receiveBuffer.trim()) logLine("RX", receiveBuffer.trim());
+        receiveBuffer = "";
+        serialReadTask = null;
+        disconnecting = false;
+        connectButton.disabled = false;
+        logLine("SYS", deviceRemoved ? "串口设备已断开" : "串口已断开");
+      }
+    }
+
+    async function connectSerial() {
+      if (serialPort) {
+        await disconnectSerial();
+        return;
+      }
+
+      try {
+        connectButton.disabled = true;
+        statusText.textContent = "正在选择串口";
+        const port = await navigator.serial.requestPort();
+        const baudRate = Number(document.getElementById("baudSelect").value);
+        await port.open({ baudRate });
+        serialPort = port;
+        receiveBuffer = "";
+        setConnected(true, `${baudRate} baud`);
+        logLine("SYS", `串口已连接，波特率 ${baudRate}`);
+        serialReadTask = readSerial(port);
+        void serialReadTask.finally(() => {
+          if (serialPort === port && !disconnecting) void disconnectSerial(true);
+        });
+      } catch (error) {
+        setConnected(false);
+        if (error.name !== "NotFoundError") logLine("ERR", error.message || String(error));
+      } finally {
+        connectButton.disabled = false;
+      }
+    }
+
+    document.getElementById("sendAllButton").addEventListener("click", sendAll);
+    document.getElementById("connectButton").addEventListener("click", connectSerial);
+    document.getElementById("clearButton").addEventListener("click", () => {
+      consoleElement.textContent = "";
+    });
+    document.getElementById("resetButton").addEventListener("click", () => {
+      for (const parameter of parameters) localStorage.removeItem(`26h.${parameter.key}`);
+      renderParameters();
+      logLine("SYS", "参数已恢复为默认值，尚未发送");
+    });
+
+    if (!("serial" in navigator)) {
+      connectButton.disabled = true;
+      supportNote.classList.add("error");
+      supportNote.textContent = "当前浏览器不支持 Web Serial，请使用电脑端 Chrome 或 Edge 打开。";
+    } else if (!window.isSecureContext) {
+      connectButton.disabled = true;
+      supportNote.classList.add("error");
+      supportNote.textContent = "串口访问需要安全页面，请通过 localhost 打开本页面。";
+    }
+
+    if ("serial" in navigator) {
+      navigator.serial.addEventListener("disconnect", event => {
+        if (event.target === serialPort || event.port === serialPort) void disconnectSerial(true);
+      });
+    }
+
+    renderParameters();
+    setConnected(false);
+  </script>
+</body>
+</html>
