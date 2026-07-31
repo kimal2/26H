@@ -14,6 +14,7 @@
 #define BLUETOOTH_RX_SIZE      32U
 #define BLUETOOTH_FRAME_SIZE   40U
 #define BLUETOOTH_KEY_SIZE     16U
+#define LINE_TELEMETRY_PERIOD_MS  50U
 
 typedef enum {
     PARAM_RESULT_OK = 0,
@@ -27,6 +28,47 @@ static char bluetooth_frame[BLUETOOTH_FRAME_SIZE];
 static volatile uint8_t bluetooth_frame_ready;
 static uint8_t bluetooth_frame_index;
 static uint8_t bluetooth_frame_receiving;
+static uint32_t line_telemetry_tick;
+
+static char *Bluetooth_AppendUInt64(char *destination, uint64_t value)
+{
+    char reversed[20];
+    uint8_t length = 0U;
+
+    do {
+        reversed[length++] = (char)('0' + (value % 10U));
+        value /= 10U;
+    } while (value != 0U);
+
+    while (length != 0U) {
+        *destination++ = reversed[--length];
+    }
+    return destination;
+}
+
+static uint8_t Bluetooth_ParseUInt64(const char *text, uint64_t *value)
+{
+    const uint64_t maximum = ~(uint64_t)0;
+    uint64_t parsed = 0U;
+    uint8_t digit;
+
+    if (*text == '\0') {
+        return 0U;
+    }
+    while (*text != '\0') {
+        if ((*text < '0') || (*text > '9')) {
+            return 0U;
+        }
+        digit = (uint8_t)(*text - '0');
+        if (parsed > ((maximum - digit) / 10U)) {
+            return 0U;
+        }
+        parsed = (parsed * 10U) + digit;
+        text++;
+    }
+    *value = parsed;
+    return 1U;
+}
 
 static HAL_StatusTypeDef Camera_StartReceive(void)
 {
@@ -94,17 +136,17 @@ static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
         TrackingTune.line_kd = value;
     } else if ((strcmp(key, "base_pwm") == 0) ||
                (strcmp(key, "base_speed") == 0)) {
-        if (Bluetooth_ValueInRange(value, 0.0f, 100.0f) == 0U) {
+        if (Bluetooth_ValueInRange(value, 0.0f, TRACKING_PWM_MAX) == 0U) {
             return PARAM_RESULT_RANGE;
         }
         TrackingTune.base_pwm = value;
     } else if (strcmp(key, "turn_pwm") == 0) {
-        if (Bluetooth_ValueInRange(value, 0.0f, 100.0f) == 0U) {
+        if (Bluetooth_ValueInRange(value, 0.0f, TRACKING_PWM_MAX) == 0U) {
             return PARAM_RESULT_RANGE;
         }
         TrackingTune.turn_pwm = value;
     } else if (strcmp(key, "line_max") == 0) {
-        if (Bluetooth_ValueInRange(value, 0.0f, 100.0f) == 0U) {
+        if (Bluetooth_ValueInRange(value, 0.0f, TRACKING_PWM_MAX) == 0U) {
             return PARAM_RESULT_RANGE;
         }
         TrackingTune.max_correction = value;
@@ -143,6 +185,32 @@ static void Bluetooth_Send(const char *text)
                             50U);
 }
 
+static void Bluetooth_SendLineTelemetry(void)
+{
+    char telemetry[64];
+    char *write_position;
+    uint32_t now;
+
+    now = HAL_GetTick();
+    if ((uint32_t)(now - line_telemetry_tick) < LINE_TELEMETRY_PERIOD_MS) {
+        return;
+    }
+    line_telemetry_tick = now;
+
+    (void)snprintf(telemetry, sizeof(telemetry),
+                   "eb:%d,%d\n",
+                   (int)Tracking_GetLineError(),
+                   (int)Tracking_GetBlackCount());
+    write_position = telemetry + strlen(telemetry);
+    *write_position++ = 'o';
+    *write_position++ = ':';
+    write_position = Bluetooth_AppendUInt64(
+        write_position, Tracking_GetOdometerCounts());
+    *write_position++ = '\n';
+    *write_position = '\0';
+    Bluetooth_Send(telemetry);
+}
+
 HAL_StatusTypeDef UartReceiveStart(void)
 {
     HAL_StatusTypeDef camera_status;
@@ -161,8 +229,11 @@ void Bluetooth_Process(void)
     char *comma;
     char *closing_bracket;
     float value;
+    uint64_t odometer_target;
     ParameterResult_t result;
     size_t key_length;
+
+    Bluetooth_SendLineTelemetry();
 
     if (bluetooth_frame_ready == 0U) {
         return;
@@ -190,6 +261,22 @@ void Bluetooth_Process(void)
     (void)memcpy(key, &frame[1], key_length);
     key[key_length] = '\0';
     *closing_bracket = '\0';
+
+    if (strcmp(key, "odo") == 0) {
+        bluetooth_frame_ready = 0U;
+        if (Bluetooth_ParseUInt64(comma + 1, &odometer_target) == 0U) {
+            Bluetooth_Send("[ERR,RANGE]\r\n");
+            return;
+        }
+        Tracking_SetOdometerTarget(odometer_target);
+        (void)strcpy(response, "[OK,odo,");
+        closing_bracket = Bluetooth_AppendUInt64(
+            response + strlen(response), odometer_target);
+        (void)strcpy(closing_bracket, "]\r\n");
+        Bluetooth_Send(response);
+        return;
+    }
+
     value = (float)atof(comma + 1);
     result = Bluetooth_SetParameter(key, value);
     bluetooth_frame_ready = 0U;

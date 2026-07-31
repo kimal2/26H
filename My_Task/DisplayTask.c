@@ -8,13 +8,11 @@
 #define MENU_SCAN_PERIOD_MS          10U
 #define MENU_REFRESH_PERIOD_MS       100U
 #define MENU_DEBOUNCE_SAMPLES        3U
-#define MENU_TRACK_TIMEOUT_MS        20000U
 
 typedef enum {
     MENU_STATE_SELECT = 0,
     MENU_STATE_RUNNING,
-    MENU_STATE_COMPLETE,
-    MENU_STATE_TIMEOUT
+    MENU_STATE_COMPLETE
 } MenuState_t;
 
 typedef struct {
@@ -81,10 +79,10 @@ static void Menu_RenderSelect(void)
 {
     OLED_Clear();
     OLED_ShowString(0U, 0U, (uint8_t *)"TASK MENU", 8U);
-    OLED_ShowString(0U, 2U, (uint8_t *)"> R2 LINE TRACK", 8U);
-    OLED_ShowString(0U, 4U, (uint8_t *)"KEY1: GRAY CAL", 8U);
-    OLED_ShowString(0U, 5U, (uint8_t *)"KEY3: START", 8U);
-    OLED_ShowString(0U, 6U, (uint8_t *)"KEY4: STOP", 8U);
+    OLED_ShowString(0U, 1U, (uint8_t *)"> R2 LINE TRACK", 8U);
+    OLED_ShowString(0U, 5U, (uint8_t *)"KEY1: GRAY CAL", 8U);
+    OLED_ShowString(0U, 6U, (uint8_t *)"KEY3: START", 8U);
+    OLED_ShowString(0U, 7U, (uint8_t *)"KEY4: STOP", 8U);
 }
 
 static void Menu_RenderRunning(void)
@@ -132,13 +130,6 @@ static void Menu_UpdateRunning(void)
         tracking_finish_tick = now;
         menu_state = MENU_STATE_COMPLETE;
         Menu_RenderResult("COMPLETE", tracking_finish_tick - tracking_start_tick);
-        return;
-    }
-    if (elapsed >= MENU_TRACK_TIMEOUT_MS) {
-        Tracking_Stop();
-        tracking_finish_tick = now;
-        menu_state = MENU_STATE_TIMEOUT;
-        Menu_RenderResult("TIMEOUT", elapsed);
         return;
     }
     if ((now - last_refresh_tick) >= MENU_REFRESH_PERIOD_MS) {

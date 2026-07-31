@@ -25,6 +25,7 @@
     body {
       margin: 0;
       min-width: 320px;
+      overflow: hidden;
       background: var(--bg);
       color: var(--ink);
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -65,7 +66,7 @@
     }
 
     .topbar-inner, main {
-      width: min(100%, 980px);
+      width: min(100%, 1480px);
       margin: 0 auto;
       padding-left: max(16px, env(safe-area-inset-left));
       padding-right: max(16px, env(safe-area-inset-right));
@@ -107,14 +108,20 @@
       box-shadow: 0 0 0 3px rgba(22, 116, 71, 0.14);
     }
 
-    main { padding-top: 18px; padding-bottom: calc(28px + env(safe-area-inset-bottom)); }
+    main {
+      height: calc(100dvh - 64px);
+      display: flex;
+      flex-direction: column;
+      padding-top: 10px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
 
     .connection-panel {
       display: grid;
-      grid-template-columns: minmax(210px, 1fr) auto;
-      gap: 10px;
-      align-items: end;
-      padding: 16px 0 18px;
+      grid-template-columns: 180px auto minmax(280px, 1fr);
+      gap: 12px;
+      align-items: center;
+      padding: 8px 0 12px;
       border-bottom: 1px solid var(--border);
     }
 
@@ -138,7 +145,6 @@
     .secondary:hover:not(:disabled) { border-color: #aeb8b2; background: #f8faf9; }
 
     .support-note {
-      grid-column: 1 / -1;
       margin: 0;
       color: var(--muted);
       font-size: 13px;
@@ -151,7 +157,7 @@
       flex-wrap: wrap;
       align-items: center;
       gap: 10px;
-      padding: 16px 0;
+      padding: 10px 0;
     }
 
     .toggle {
@@ -165,13 +171,120 @@
 
     .toggle input { width: 18px; height: 18px; accent-color: var(--green); }
 
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(520px, 1.35fr) minmax(390px, 0.85fr);
+      gap: 18px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .tuning-pane {
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .parameter-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .parameter-tab {
+      min-height: 38px;
+      padding: 0 14px;
+      color: var(--muted);
+      background: transparent;
+    }
+
+    .parameter-tab.active {
+      border-color: var(--green);
+      background: var(--green);
+      color: white;
+    }
+
+    .monitor-pane {
+      display: grid;
+      grid-template-rows: minmax(210px, 1.25fr) minmax(135px, 0.75fr);
+      gap: 14px;
+      min-width: 0;
+      min-height: 0;
+      padding-left: 18px;
+      border-left: 1px solid var(--border);
+    }
+
+    .telemetry-section {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .telemetry-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+
+    .telemetry-heading h2 { margin: 0; font-size: 15px; letter-spacing: 0; }
+
+    .telemetry-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 20px;
+      color: var(--muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .telemetry-values strong { color: var(--ink); font-size: 15px; }
+
+    .wave-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .wave-modes { display: inline-flex; gap: 4px; }
+
+    .wave-mode, .wave-clear {
+      min-height: 30px;
+      padding: 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+      background: transparent;
+    }
+
+    .wave-mode.active {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: white;
+    }
+
+    .waveform {
+      display: block;
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+      border: 1px solid #27322c;
+      border-radius: 6px;
+      background: #18201c;
+    }
+
     .parameter-group {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 7px;
       box-shadow: var(--shadow);
       overflow: hidden;
-      margin-bottom: 16px;
+      margin-bottom: 0;
     }
 
     .group-heading {
@@ -207,12 +320,15 @@
       accent-color: var(--green);
     }
 
-    input[type="number"] {
+    input[type="number"], .odometer-input {
       width: 100%;
       padding: 0 8px;
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
+
+    .parameter-row.odometer-row .odometer-input { grid-column: 2 / 4; }
+    .parameter-row.odometer-row .send-one { grid-column: 4; }
 
     .send-one {
       padding: 0;
@@ -220,7 +336,12 @@
       font-size: 13px;
     }
 
-    .console-section { margin-top: 18px; }
+    .console-section {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      margin: 0;
+    }
     .console-heading {
       display: flex;
       align-items: center;
@@ -233,7 +354,8 @@
     .clear-button { min-height: 34px; padding: 0 10px; color: var(--muted); font-size: 13px; }
 
     .console {
-      height: 150px;
+      flex: 1;
+      min-height: 0;
       overflow: auto;
       margin: 0;
       padding: 12px;
@@ -246,11 +368,28 @@
       word-break: break-word;
     }
 
+    @media (max-width: 980px) {
+      body { overflow: auto; }
+      main { height: auto; min-height: calc(100dvh - 58px); }
+      .workspace { grid-template-columns: 1fr; }
+      .monitor-pane {
+        grid-template-rows: 280px 180px;
+        padding-left: 0;
+        padding-top: 14px;
+        border-left: 0;
+        border-top: 1px solid var(--border);
+      }
+      .console { height: 150px; }
+    }
+
     @media (max-width: 680px) {
       .topbar-inner { min-height: 58px; }
       h1 { font-size: 18px; }
       .connection-panel { grid-template-columns: 1fr; }
       .connection-panel button { width: 100%; }
+      .support-note { grid-column: 1 / -1; }
+      .parameter-tabs { overflow-x: auto; }
+      .parameter-tab { flex: 0 0 auto; }
       .parameter-row {
         grid-template-columns: minmax(0, 1fr) 88px 50px;
         gap: 8px;
@@ -260,7 +399,14 @@
       .parameter-row input[type="range"] { grid-column: 1 / -1; grid-row: 2; }
       .parameter-row input[type="number"] { grid-column: 2; grid-row: 1; }
       .send-one { grid-column: 3; grid-row: 1; }
+      .parameter-row.odometer-row .odometer-input {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
+      .parameter-row.odometer-row .send-one { grid-column: 3; grid-row: 1; }
       .toolbar .toggle { width: 100%; margin-left: 0; }
+      .telemetry-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+      .monitor-pane { grid-template-rows: 250px 180px; }
     }
   </style>
 </head>
@@ -296,34 +442,68 @@
       <label class="toggle"><input id="autoSend" type="checkbox" checked> 滑块松手自动发送</label>
     </div>
 
-    <div id="parameterGroups"></div>
+    <div class="workspace">
+      <section class="tuning-pane" aria-label="参数调节">
+        <nav id="parameterTabs" class="parameter-tabs" aria-label="调参类型"></nav>
+        <div id="parameterGroups"></div>
+      </section>
 
-    <section class="console-section" aria-label="通信记录">
-      <div class="console-heading">
-        <h2>通信记录</h2>
-        <button id="clearButton" class="clear-button" type="button">清空</button>
-      </div>
-      <pre id="console" class="console" aria-live="polite">等待连接...</pre>
-    </section>
+      <aside class="monitor-pane" aria-label="实时监控">
+        <section class="telemetry-section" aria-label="循迹实时数据">
+          <div class="telemetry-heading">
+            <h2>循迹实时数据</h2>
+            <div class="telemetry-values">
+              <span>误差和 <strong id="errorValue">0</strong></span>
+              <span>黑点 <strong id="blackValue">0</strong></span>
+              <span>里程 <strong id="odometerValue">0</strong></span>
+            </div>
+          </div>
+          <div class="wave-toolbar">
+            <div class="wave-modes" role="group" aria-label="波形查看范围">
+              <button id="showAllWave" class="wave-mode active" type="button">全程</button>
+              <button id="showRecentWave" class="wave-mode" type="button">最近 10 秒</button>
+            </div>
+            <button id="clearWave" class="wave-clear" type="button">清空波形</button>
+          </div>
+          <canvas id="waveCanvas" class="waveform"></canvas>
+        </section>
+
+        <section class="console-section" aria-label="通信记录">
+          <div class="console-heading">
+            <h2>通信记录</h2>
+            <button id="clearButton" class="clear-button" type="button">清空</button>
+          </div>
+          <pre id="console" class="console" aria-live="polite">等待连接...</pre>
+        </section>
+      </aside>
+    </div>
   </main>
 
   <script>
     const parameters = [
-      { group: "循迹 PID", label: "比例", key: "line_kp", min: -20, max: 20, step: 0.1, value: 2 },
+      { group: "循迹 PID", label: "比例", key: "line_kp", min: -20, max: 20, step: 0.1, value: 10 },
       { group: "循迹 PID", label: "积分", key: "line_ki", min: -5, max: 5, step: 0.01, value: 0 },
-      { group: "循迹 PID", label: "微分", key: "line_kd", min: -20, max: 20, step: 0.1, value: 3 },
-      { group: "小车输出", label: "基础 PWM", key: "base_pwm", min: 0, max: 100, step: 1, value: 35 },
-      { group: "小车输出", label: "转弯 PWM", key: "turn_pwm", min: 0, max: 100, step: 1, value: 35 },
-      { group: "小车输出", label: "最大差速", key: "line_max", min: 0, max: 100, step: 1, value: 30 },
+      { group: "循迹 PID", label: "微分", key: "line_kd", min: -20, max: 20, step: 0.1, value: 0 },
+      { group: "小车输出", label: "直线平均 PWM", key: "base_pwm", min: 0, max: 1000, step: 1, value: 300 },
+      { group: "小车输出", label: "原地转弯 PWM", key: "turn_pwm", min: 0, max: 1000, step: 1, value: 200 },
+      { group: "小车输出", label: "PID 差速上限", key: "line_max", min: 0, max: 1000, step: 1, value: 350 },
+      { group: "小车输出", label: "目标里程脉冲", key: "odo", kind: "uint64", value: "42075" },
       { group: "滚球 PID", label: "比例", key: "ball_kp", min: -2, max: 2, step: 0.01, value: 0.05 },
       { group: "滚球 PID", label: "积分", key: "ball_ki", min: -2, max: 2, step: 0.01, value: 0 },
       { group: "滚球 PID", label: "微分", key: "ball_kd", min: -2, max: 2, step: 0.01, value: 0 },
       { group: "MPU6050 前馈", label: "X 轴前馈", key: "ball_kff", min: -20, max: 20, step: 0.1, value: 0 }
     ];
+    const parameterGroupNames = [...new Set(parameters.map(item => item.group))];
+    let activeParameterGroup = parameterGroupNames[0];
 
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     const parameterDecimals = 3;
+    const uint64Maximum = 18446744073709551615n;
+    const telemetrySamples = [];
+    const recentWaveMilliseconds = 10000;
+    let telemetryStartTime = null;
+    let waveformMode = "all";
     const values = new Map();
     let serialPort = null;
     let serialReader = null;
@@ -339,9 +519,20 @@
     const sendAllButton = document.getElementById("sendAllButton");
     const supportNote = document.getElementById("supportNote");
     const consoleElement = document.getElementById("console");
+    const waveCanvas = document.getElementById("waveCanvas");
+    const waveContext = waveCanvas.getContext("2d");
 
     function formatValue(parameter, value) {
+      if (parameter.kind === "uint64") return String(value);
       return Number(value).toFixed(parameterDecimals);
+    }
+
+    function normalizeUInt64(rawValue) {
+      const text = String(rawValue).trim();
+      if (!/^\d+$/.test(text)) return null;
+      const value = BigInt(text);
+      if (value > uint64Maximum) return null;
+      return value.toString();
     }
 
     function setConnected(connected, name = "") {
@@ -364,23 +555,309 @@
       consoleElement.scrollTop = consoleElement.scrollHeight;
     }
 
+    function formatWaveTime(milliseconds) {
+      if (milliseconds >= 60000) {
+        const minutes = Math.floor(milliseconds / 60000);
+        const seconds = Math.floor((milliseconds % 60000) / 1000);
+        return `${minutes}:${String(seconds).padStart(2, "0")}`;
+      }
+      return `${(milliseconds / 1000).toFixed(milliseconds < 10000 ? 1 : 0)}s`;
+    }
+
+    function firstSampleAtOrAfter(time) {
+      let low = 0;
+      let high = telemetrySamples.length;
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2);
+        if (telemetrySamples[middle].time < time) low = middle + 1;
+        else high = middle;
+      }
+      return low;
+    }
+
+    function drawWaveform() {
+      const width = waveCanvas.clientWidth;
+      const height = waveCanvas.clientHeight;
+      if (width <= 0 || height <= 0) return;
+
+      const lanes = [
+        { key: "error", label: "ERR", min: -72, max: 72, color: "#5ec98b" },
+        { key: "black", label: "BLACK", min: 0, max: 8, color: "#e4c45c" }
+      ];
+      const left = 68;
+      const right = 12;
+      const top = 8;
+      const bottom = 24;
+      const plotWidth = Math.max(1, width - left - right);
+      const plotHeight = Math.max(1, height - top - bottom);
+      const laneHeight = plotHeight / lanes.length;
+      const latestTime = telemetrySamples.length > 0
+        ? telemetrySamples[telemetrySamples.length - 1].time
+        : 0;
+      let viewStart = 0;
+      let viewEnd = Math.max(1000, latestTime);
+
+      if (waveformMode === "recent") {
+        viewEnd = Math.max(recentWaveMilliseconds, latestTime);
+        viewStart = viewEnd - recentWaveMilliseconds;
+      }
+      const firstIndex = firstSampleAtOrAfter(viewStart);
+      const visibleCount = telemetrySamples.length - firstIndex;
+      const pointStep = Math.max(1, Math.floor(visibleCount / Math.max(1, plotWidth * 2)));
+
+      waveContext.clearRect(0, 0, width, height);
+      waveContext.fillStyle = "#18201c";
+      waveContext.fillRect(0, 0, width, height);
+      waveContext.font = '10px ui-monospace, "SFMono-Regular", Consolas, monospace';
+      waveContext.lineWidth = 1;
+
+      for (let division = 0; division <= 10; division++) {
+        const x = left + plotWidth * division / 10;
+        waveContext.strokeStyle = division % 2 === 0 ? "#3a4740" : "#29352f";
+        waveContext.beginPath();
+        waveContext.moveTo(x, top);
+        waveContext.lineTo(x, top + plotHeight);
+        waveContext.stroke();
+
+        if (division % 2 === 0) {
+          const time = viewStart + (viewEnd - viewStart) * division / 10;
+          waveContext.fillStyle = "#95a49c";
+          waveContext.textAlign = "center";
+          waveContext.fillText(formatWaveTime(time), x, height - 6);
+        }
+      }
+
+      lanes.forEach((lane, laneIndex) => {
+        const laneTop = top + laneIndex * laneHeight;
+        const laneBottom = laneTop + laneHeight;
+
+        for (let division = 0; division <= 4; division++) {
+          const y = laneTop + laneHeight * division / 4;
+          const value = lane.max - (lane.max - lane.min) * division / 4;
+          waveContext.strokeStyle = division === 2 ? "#46554d" : "#29352f";
+          waveContext.beginPath();
+          waveContext.moveTo(left, y);
+          waveContext.lineTo(width - right, y);
+          waveContext.stroke();
+
+          if (division % 2 === 0) {
+            waveContext.fillStyle = "#95a49c";
+            waveContext.textAlign = "right";
+            waveContext.fillText(String(Math.round(value)), left - 5, y + 3);
+          }
+        }
+
+        waveContext.fillStyle = lane.color;
+        waveContext.textAlign = "left";
+        waveContext.fillText(lane.label, 5, laneTop + 12);
+
+        if (visibleCount === 0) return;
+        waveContext.save();
+        waveContext.beginPath();
+        waveContext.rect(left, laneTop, plotWidth, laneHeight);
+        waveContext.clip();
+        waveContext.strokeStyle = lane.color;
+        waveContext.lineWidth = 1.5;
+        waveContext.beginPath();
+
+        let plotted = 0;
+        for (let sampleIndex = firstIndex;
+             sampleIndex < telemetrySamples.length;
+             sampleIndex += pointStep) {
+          const sample = telemetrySamples[sampleIndex];
+          const x = left + (sample.time - viewStart) * plotWidth /
+                    Math.max(1, viewEnd - viewStart);
+          const value = Math.max(lane.min, Math.min(lane.max, sample[lane.key]));
+          const y = laneBottom - (value - lane.min) * laneHeight /
+                    (lane.max - lane.min);
+          if (plotted === 0) waveContext.moveTo(x, y);
+          else waveContext.lineTo(x, y);
+          plotted++;
+        }
+
+        const lastSample = telemetrySamples[telemetrySamples.length - 1];
+        if (lastSample.time >= viewStart) {
+          const x = left + (lastSample.time - viewStart) * plotWidth /
+                    Math.max(1, viewEnd - viewStart);
+          const value = Math.max(lane.min, Math.min(lane.max, lastSample[lane.key]));
+          const y = laneBottom - (value - lane.min) * laneHeight /
+                    (lane.max - lane.min);
+          waveContext.lineTo(x, y);
+        }
+        waveContext.stroke();
+        waveContext.restore();
+      });
+
+      waveContext.strokeStyle = "#65746c";
+      waveContext.strokeRect(left, top, plotWidth, plotHeight);
+      if (telemetrySamples.length === 0) {
+        waveContext.fillStyle = "#95a49c";
+        waveContext.textAlign = "center";
+        waveContext.fillText("等待循迹数据", left + plotWidth / 2, top + plotHeight / 2);
+      }
+      waveContext.textAlign = "left";
+    }
+
+    function resizeWaveform() {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(1, Math.round(waveCanvas.clientWidth * ratio));
+      const height = Math.max(1, Math.round(waveCanvas.clientHeight * ratio));
+      if (waveCanvas.width !== width || waveCanvas.height !== height) {
+        waveCanvas.width = width;
+        waveCanvas.height = height;
+        waveContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+      drawWaveform();
+    }
+
+    function handleTelemetry(message) {
+      const odometerMatch = message.match(/^o:(\d+)$/);
+      if (odometerMatch) {
+        document.getElementById("odometerValue").textContent = odometerMatch[1];
+        return true;
+      }
+
+      const match = message.match(/^eb:(-?\d+),(\d+)$/);
+      if (!match) return false;
+
+      const sample = {
+        error: Number(match[1]),
+        black: Number(match[2]),
+        time: 0
+      };
+      const now = performance.now();
+      if (telemetryStartTime === null) telemetryStartTime = now;
+      sample.time = now - telemetryStartTime;
+      telemetrySamples.push(sample);
+      document.getElementById("errorValue").textContent = String(sample.error);
+      document.getElementById("blackValue").textContent = String(sample.black);
+      drawWaveform();
+      return true;
+    }
+
+    function setWaveformMode(mode) {
+      waveformMode = mode;
+      const showAll = mode === "all";
+      document.getElementById("showAllWave").classList.toggle("active", showAll);
+      document.getElementById("showRecentWave").classList.toggle("active", !showAll);
+      document.getElementById("showAllWave").setAttribute("aria-pressed", String(showAll));
+      document.getElementById("showRecentWave").setAttribute("aria-pressed", String(!showAll));
+      drawWaveform();
+    }
+
+    function clearWaveform() {
+      telemetrySamples.length = 0;
+      telemetryStartTime = null;
+      drawWaveform();
+    }
+
+    function loadParameterValues() {
+      const defaultsVersion = "firmware-20260801-5";
+      if (localStorage.getItem("26h.defaultsVersion") !== defaultsVersion) {
+        for (const parameter of parameters) {
+          localStorage.removeItem(`26h.${parameter.key}`);
+        }
+        localStorage.setItem("26h.defaultsVersion", defaultsVersion);
+      }
+
+      if (localStorage.getItem("26h.pwmRange") !== "1000") {
+        for (const key of ["base_pwm", "turn_pwm", "line_max"]) {
+          const savedValue = localStorage.getItem(`26h.${key}`);
+          if (savedValue !== null && Number(savedValue) <= 100) {
+            localStorage.setItem(`26h.${key}`, String(Number(savedValue) * 10));
+          }
+        }
+        localStorage.setItem("26h.pwmRange", "1000");
+      }
+
+      for (const parameter of parameters) {
+        const savedValue = localStorage.getItem(`26h.${parameter.key}`);
+        if (parameter.kind === "uint64") {
+          values.set(parameter.key, normalizeUInt64(savedValue ?? parameter.value) ?? parameter.value);
+          continue;
+        }
+        const savedNumber = savedValue === null ? parameter.value : Number(savedValue);
+        values.set(parameter.key, Number.isFinite(savedNumber) ? savedNumber : parameter.value);
+      }
+    }
+
+    function renderParameterTabs() {
+      const tabs = document.getElementById("parameterTabs");
+      tabs.textContent = "";
+      tabs.setAttribute("role", "tablist");
+
+      for (const groupName of parameterGroupNames) {
+        const button = document.createElement("button");
+        const active = groupName === activeParameterGroup;
+        button.className = `parameter-tab${active ? " active" : ""}`;
+        button.type = "button";
+        button.textContent = groupName;
+        button.setAttribute("role", "tab");
+        button.setAttribute("aria-selected", String(active));
+        button.addEventListener("click", () => {
+          activeParameterGroup = groupName;
+          renderParameterTabs();
+          renderParameters();
+        });
+        tabs.appendChild(button);
+      }
+    }
+
     function renderParameters() {
       const container = document.getElementById("parameterGroups");
-      const groups = [...new Set(parameters.map(item => item.group))];
       container.textContent = "";
 
-      for (const groupName of groups) {
-        const section = document.createElement("section");
-        section.className = "parameter-group";
-        section.innerHTML = `<h2 class="group-heading">${groupName}</h2>`;
+      const section = document.createElement("section");
+      section.className = "parameter-group";
+      section.innerHTML = `<h2 class="group-heading">${activeParameterGroup}</h2>`;
 
-        for (const parameter of parameters.filter(item => item.group === groupName)) {
-          const savedValue = localStorage.getItem(`26h.${parameter.key}`);
-          const initialValue = savedValue === null ? parameter.value : Number(savedValue);
-          values.set(parameter.key, initialValue);
+      for (const parameter of parameters.filter(item => item.group === activeParameterGroup)) {
+          const initialValue = values.get(parameter.key);
 
           const row = document.createElement("div");
           row.className = "parameter-row";
+          if (parameter.kind === "uint64") {
+            row.classList.add("odometer-row");
+            row.innerHTML = `
+              <div class="parameter-name"><strong>${parameter.label}</strong><code>${parameter.key}</code></div>
+              <input class="odometer-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="20" value="${initialValue}" aria-label="${parameter.label}">
+              <button class="send-one" type="button">发送</button>`;
+
+            const input = row.querySelector(".odometer-input");
+            const sendButton = row.querySelector(".send-one");
+            sendButton.disabled = !serialPort?.writable || disconnecting;
+            input.addEventListener("change", () => {
+              const normalized = normalizeUInt64(input.value);
+              if (normalized === null) {
+                input.setCustomValidity("请输入 0 到 18446744073709551615 的整数");
+                input.reportValidity();
+                input.value = values.get(parameter.key);
+                return;
+              }
+              input.setCustomValidity("");
+              input.value = normalized;
+              values.set(parameter.key, normalized);
+              localStorage.setItem(`26h.${parameter.key}`, normalized);
+              if (document.getElementById("autoSend").checked && serialPort?.writable) {
+                sendParameter(parameter.key);
+              }
+            });
+            sendButton.addEventListener("click", () => {
+              const normalized = normalizeUInt64(input.value);
+              if (normalized === null) {
+                input.setCustomValidity("请输入 0 到 18446744073709551615 的整数");
+                input.reportValidity();
+                return;
+              }
+              input.setCustomValidity("");
+              input.value = normalized;
+              values.set(parameter.key, normalized);
+              localStorage.setItem(`26h.${parameter.key}`, normalized);
+              sendParameter(parameter.key);
+            });
+            section.appendChild(row);
+            continue;
+          }
           row.innerHTML = `
             <div class="parameter-name"><strong>${parameter.label}</strong><code>${parameter.key}</code></div>
             <input class="range-input" type="range" min="${parameter.min}" max="${parameter.max}" step="${parameter.step}" value="${initialValue}" aria-label="${parameter.label}">
@@ -413,10 +890,9 @@
             }
           });
           sendButton.addEventListener("click", () => sendParameter(parameter.key));
-          section.appendChild(row);
-        }
-        container.appendChild(section);
+        section.appendChild(row);
       }
+      container.appendChild(section);
     }
 
     async function writeText(text) {
@@ -440,7 +916,11 @@
     function sendParameter(key) {
       const parameter = parameters.find(item => item.key === key);
       if (!parameter) return Promise.resolve();
-      const command = `[${key},${formatValue(parameter, values.get(key))}]`;
+      const value = values.get(key);
+      const commandValue = parameter.kind === "uint64"
+        ? String(value)
+        : formatValue(parameter, value);
+      const command = `[${key},${commandValue}]`;
       return enqueueText(command);
     }
 
@@ -462,7 +942,7 @@
 
         const message = receiveBuffer.slice(0, end).trim();
         receiveBuffer = receiveBuffer.slice(end).replace(/^[\r\n]+/, "");
-        if (message) logLine("RX", message);
+        if (message && !handleTelemetry(message)) logLine("RX", message);
       }
 
       if (receiveBuffer.length > 256) {
@@ -556,8 +1036,16 @@
     document.getElementById("clearButton").addEventListener("click", () => {
       consoleElement.textContent = "";
     });
+    document.getElementById("showAllWave").addEventListener("click", () => {
+      setWaveformMode("all");
+    });
+    document.getElementById("showRecentWave").addEventListener("click", () => {
+      setWaveformMode("recent");
+    });
+    document.getElementById("clearWave").addEventListener("click", clearWaveform);
     document.getElementById("resetButton").addEventListener("click", () => {
       for (const parameter of parameters) localStorage.removeItem(`26h.${parameter.key}`);
+      loadParameterValues();
       renderParameters();
       logLine("SYS", "参数已恢复为默认值，尚未发送");
     });
@@ -578,8 +1066,17 @@
       });
     }
 
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(resizeWaveform).observe(waveCanvas);
+    } else {
+      window.addEventListener("resize", resizeWaveform);
+    }
+
+    loadParameterValues();
+    renderParameterTabs();
     renderParameters();
     setConnected(false);
+    resizeWaveform();
   </script>
 </body>
 </html>

@@ -16,7 +16,7 @@ void StartGrayTrackTask(void *argument)
 
     for (;;) {
         GrayTrackTask_Process();
-        osDelay(5U);
+        osDelay(10U);
     }
 }
 

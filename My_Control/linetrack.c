@@ -2,6 +2,7 @@
 
 #include "LineSensor.h"
 #include "motor.h"
+#include "pid.h"
 #include "stm32f4xx_hal.h"
 
 #define TRACKING_LINE_INTEGRAL_LIMIT  100.0f
@@ -17,45 +18,56 @@ TrackingTune_t TrackingTune = {
 };
 
 static uint8_t tracking_ready;
-static uint32_t tracking_start_tick;
 static LineType last_branch = LINE_TYPE_UNKNOWN;
 static int8_t last_line_error;
-static float line_error_integral;
+static volatile int8_t current_line_error;
+static volatile uint8_t current_black_count;
+static volatile float current_diff_pwm;
+static volatile uint64_t odometer_target_counts =
+    TRACKING_ODOMETER_TARGET_DEFAULT;
 
-static float Tracking_Clamp(float value, float minimum, float maximum)
+static PID_t LineTrackingPID = {
+    .Kp = TRACKING_KP_DEFAULT,
+    .Ki = TRACKING_KI_DEFAULT,
+    .Kd = TRACKING_KD_DEFAULT,
+    .Out_Max = TRACKING_MAX_CORRECTION_DEFAULT,
+    .Out_Min = -TRACKING_MAX_CORRECTION_DEFAULT,
+    .integ_limit = TRACKING_LINE_INTEGRAL_LIMIT,
+    .Out_Offset = 0.0f,
+};
+
+static void Tracking_ResetPID(int8_t error)
 {
-    if (value > maximum) {
-        return maximum;
-    }
-    if (value < minimum) {
-        return minimum;
-    }
-    return value;
+    PID_Clear(&LineTrackingPID);
+    LineTrackingPID.actual = (float)error;
+    LineTrackingPID.actual_last = (float)error;
+    current_diff_pwm = 0.0f;
 }
 
 static void Tracking_DriveLine(void)
 {
     int8_t error;
-    float correction;
+    float avg_pwm;
+    float diff_pwm;
     float left_pwm;
     float right_pwm;
 
-    error = LineSensor_Get_Err();
-    line_error_integral = Tracking_Clamp(
-        line_error_integral + (float)error,
-        -TRACKING_LINE_INTEGRAL_LIMIT,
-        TRACKING_LINE_INTEGRAL_LIMIT);
-    correction = TrackingTune.line_kp * (float)error +
-                 TrackingTune.line_ki * line_error_integral +
-                 TrackingTune.line_kd *
-                     ((float)error - (float)last_line_error);
-    correction = Tracking_Clamp(correction,
-                                -TrackingTune.max_correction,
-                                TrackingTune.max_correction);
+    error = current_line_error;
+    LineTrackingPID.Kp = TrackingTune.line_kp;
+    LineTrackingPID.Ki = TrackingTune.line_ki;
+    LineTrackingPID.Kd = TrackingTune.line_kd;
+    LineTrackingPID.Out_Max = TrackingTune.max_correction;
+    LineTrackingPID.Out_Min = -TrackingTune.max_correction;
+    LineTrackingPID.target = 0.0f;
+    LineTrackingPID.actual = (float)error;
+    PID_Calc(&LineTrackingPID);
 
-    left_pwm = TrackingTune.base_pwm + correction;
-    right_pwm = TrackingTune.base_pwm - correction;
+    avg_pwm = TrackingTune.base_pwm;
+    diff_pwm = LineTrackingPID.output;
+    left_pwm = avg_pwm - diff_pwm;
+    right_pwm = avg_pwm + diff_pwm;
     Motor_Set_PWM((int32_t)left_pwm, (int32_t)right_pwm);
+    current_diff_pwm = diff_pwm;
     last_line_error = error;
 }
 
@@ -90,7 +102,8 @@ static TrackingEvent Tracking_UpdateState(LineType line)
         (line == LINE_TYPE_STRAIGHT)) {
         Tracker.car_state = CAR_STATE_TRACKING;
         last_branch = LINE_TYPE_UNKNOWN;
-        last_line_error = LineSensor_Get_Err();
+        last_line_error = current_line_error;
+        Tracking_ResetPID(current_line_error);
         return TRACK_EVENT_LINE_REACQUIRED;
     }
 
@@ -103,10 +116,11 @@ void Tracking_Init(void)
     Motor_Stop();
 
     Tracker.car_state = CAR_STATE_STOP;
-    tracking_start_tick = 0U;
     last_branch = LINE_TYPE_UNKNOWN;
     last_line_error = 0;
-    line_error_integral = 0.0f;
+    current_line_error = 0;
+    current_black_count = 0U;
+    Tracking_ResetPID(0);
     tracking_ready = 1U;
 }
 
@@ -116,10 +130,10 @@ void Tracking_Start(void)
         return;
     }
 
-    tracking_start_tick = HAL_GetTick();
     last_branch = LINE_TYPE_UNKNOWN;
     last_line_error = 0;
-    line_error_integral = 0.0f;
+    Tracking_ResetPID(current_line_error);
+    Motor_OdometerReset();
     Tracker.car_state = CAR_STATE_TRACKING;
     Motor_Set_PWM((int32_t)TrackingTune.base_pwm,
                   (int32_t)TrackingTune.base_pwm);
@@ -130,7 +144,7 @@ void Tracking_Stop(void)
     Tracker.car_state = CAR_STATE_STOP;
     last_branch = LINE_TYPE_UNKNOWN;
     last_line_error = 0;
-    line_error_integral = 0.0f;
+    Tracking_ResetPID(current_line_error);
     Motor_Stop();
 }
 
@@ -147,15 +161,19 @@ TrackingEvent Tracking_Update(void)
 {
     LineType line;
     TrackingEvent event;
+    uint64_t odometer_target;
 
     LineSensor_Scan();
+    Motor_EncoderUpdate();
+    current_line_error = LineSensor_Get_Err();
+    current_black_count = LineSensor_Get_BlackNum();
     if (Tracker.car_state == CAR_STATE_STOP) {
         return TRACK_EVENT_NONE;
     }
 
-    if (((uint32_t)(HAL_GetTick() - tracking_start_tick) >=
-         TRACKING_STOP_LINE_DELAY_MS) &&
-        (LineSensor_Get_BlackNum() >= TRACKING_STOP_LINE_BLACK_MIN)) {
+    odometer_target = Tracking_GetOdometerTarget();
+    if ((odometer_target != 0U) &&
+        (Motor_GetOdometerCounts() >= odometer_target)) {
         return TRACK_EVENT_FINISH_LINE;
     }
 
@@ -163,12 +181,15 @@ TrackingEvent Tracking_Update(void)
     event = Tracking_UpdateState(line);
 
     if (Tracker.car_state == CAR_STATE_TURN_LEFT) {
+        current_diff_pwm = 0.0f;
         Motor_Set_PWM(-(int32_t)TrackingTune.turn_pwm,
                       (int32_t)TrackingTune.turn_pwm);
     } else if (Tracker.car_state == CAR_STATE_TURN_RIGHT) {
+        current_diff_pwm = 0.0f;
         Motor_Set_PWM((int32_t)TrackingTune.turn_pwm,
                       -(int32_t)TrackingTune.turn_pwm);
     } else if (line == LINE_TYPE_LOST) {
+        current_diff_pwm = 0.0f;
         Motor_Stop();
     } else {
         Tracking_DriveLine();
@@ -185,4 +206,50 @@ Car_State Tracking_GetState(void)
 uint8_t Tracking_IsReady(void)
 {
     return tracking_ready;
+}
+
+int8_t Tracking_GetLineError(void)
+{
+    return current_line_error;
+}
+
+uint8_t Tracking_GetBlackCount(void)
+{
+    return current_black_count;
+}
+
+float Tracking_GetDiffPWM(void)
+{
+    return current_diff_pwm;
+}
+
+void Tracking_SetOdometerTarget(uint64_t target_counts)
+{
+    uint32_t primask;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    odometer_target_counts = target_counts;
+    if (primask == 0U) {
+        __enable_irq();
+    }
+}
+
+uint64_t Tracking_GetOdometerTarget(void)
+{
+    uint64_t target;
+    uint32_t primask;
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    target = odometer_target_counts;
+    if (primask == 0U) {
+        __enable_irq();
+    }
+    return target;
+}
+
+uint64_t Tracking_GetOdometerCounts(void)
+{
+    return Motor_GetOdometerCounts();
 }

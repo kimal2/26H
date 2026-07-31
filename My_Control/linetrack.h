@@ -3,14 +3,14 @@
 
 #include <stdint.h>
 
-#define TRACKING_BASE_PWM_DEFAULT       35.0f
-#define TRACKING_TURN_PWM_DEFAULT       35.0f
-#define TRACKING_KP_DEFAULT             2.0f
+#define TRACKING_PWM_MAX                1000.0f
+#define TRACKING_BASE_PWM_DEFAULT       300.0f
+#define TRACKING_TURN_PWM_DEFAULT       200.0f
+#define TRACKING_KP_DEFAULT             10.0f
 #define TRACKING_KI_DEFAULT             0.0f
-#define TRACKING_KD_DEFAULT             3.0f
-#define TRACKING_MAX_CORRECTION_DEFAULT 30.0f
-#define TRACKING_STOP_LINE_DELAY_MS   1000U
-#define TRACKING_STOP_LINE_BLACK_MIN  4U
+#define TRACKING_KD_DEFAULT             0.0f
+#define TRACKING_MAX_CORRECTION_DEFAULT 350.0f
+#define TRACKING_ODOMETER_TARGET_DEFAULT 42075ULL
 
 typedef struct {
     volatile float line_kp;
@@ -49,5 +49,11 @@ void Tracking_Toggle(void);
 TrackingEvent Tracking_Update(void);
 Car_State Tracking_GetState(void);
 uint8_t Tracking_IsReady(void);
+int8_t Tracking_GetLineError(void);
+uint8_t Tracking_GetBlackCount(void);
+float Tracking_GetDiffPWM(void);
+void Tracking_SetOdometerTarget(uint64_t target_counts);
+uint64_t Tracking_GetOdometerTarget(void);
+uint64_t Tracking_GetOdometerCounts(void);
 
 #endif
