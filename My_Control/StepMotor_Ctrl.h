@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 /* Hardware and mechanism parameters. Tune these values during commissioning. */
-#define STEPMOTOR_MOTOR_ID                    1U
+#define STEPMOTOR_MOTOR_ID                    0U
 #define STEPMOTOR_PULSES_PER_REV              3200.0f
 #define STEPMOTOR_HOME_MODE                   0U
 #define STEPMOTOR_HOME_WAIT_MS                1000U
