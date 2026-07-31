@@ -9,6 +9,12 @@
 
 #define OLED_ADDR 0x78
 
+#define OLED_SDA_GPIO_Port      GPIOB
+#define OLED_SDA_Pin            GPIO_PIN_9
+
+#define OLED_SCL_GPIO_Port      GPIOB
+#define OLED_SCL_Pin            GPIO_PIN_8
+
 
 soft_iic_obj_t OLED;
 

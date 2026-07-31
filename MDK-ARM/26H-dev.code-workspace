@@ -1,0 +1,51 @@
+{
+    "folders": [
+        {
+            "name": "MDK-ARM",
+            "path": "."
+        },
+        {
+            "name": "Core",
+            "path": "../Core"
+        },
+        {
+            "name": "My_Drivers",
+            "path": "../My_Drivers"
+        },
+        {
+            "name": "My_Task",
+            "path": "../My_Task"
+        },
+        {
+            "path": ".."
+        }
+    ],
+    "settings": {
+        "C_Cpp.default.includePath": [
+            "${workspaceFolder:MDK-ARM}/../Core/Inc",
+            "${workspaceFolder:MDK-ARM}/../Drivers/STM32F4xx_HAL_Driver/Inc",
+            "${workspaceFolder:MDK-ARM}/../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy",
+            "${workspaceFolder:MDK-ARM}/../Drivers/CMSIS/Device/ST/STM32F4xx/Include",
+            "${workspaceFolder:MDK-ARM}/../Drivers/CMSIS/Include",
+            "${workspaceFolder:MDK-ARM}/../Middlewares/Third_Party/FreeRTOS/Source/include",
+            "${workspaceFolder:MDK-ARM}/../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2",
+            "${workspaceFolder:MDK-ARM}/../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F",
+            "${workspaceFolder:MDK-ARM}/../My_Drivers",
+            "${workspaceFolder:MDK-ARM}/../My_Task",
+            "D:/Keil5/ARM/ARMCC/include"
+        ],
+        "C_Cpp.default.defines": [
+            "USE_HAL_DRIVER",
+            "STM32F407xx",
+            "__CC_ARM",
+            "__arm__"
+        ],
+        "C_Cpp.default.cStandard": "c99"
+    },
+    "extensions": {
+        "recommendations": [
+            "cl.eide",
+            "ms-vscode.cpptools"
+        ]
+    }
+}

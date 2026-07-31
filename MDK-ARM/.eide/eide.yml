@@ -68,6 +68,17 @@ virtualFolder:
             - path: ../Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c
             - path: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F/port.c
           folders: []
+    - name: My_Drivers
+      files:
+        - path: ../My_Drivers/OLED.c
+        - path: ../My_Drivers/soft_i2c.c
+        - path: ../My_Drivers/mpu6050.c
+        - path: ../My_Drivers/mpu6050.h
+      folders: []
+    - name: My_Task
+      files:
+        - path: ../My_Task/PIDTask.c
+      folders: []
     - name: ::CMSIS
       files: []
       folders: []
@@ -90,6 +101,8 @@ targets:
         - ../Middlewares/Third_Party/FreeRTOS/Source/include
         - ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2
         - ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F
+        - ../My_Drivers
+        - ../My_Task
         - .cmsis/include
         - RTE/_26H
       libList: []
@@ -193,7 +206,7 @@ targets:
                 startAddr: "0x8000000"
               tag: IROM
             - id: 2
-              isChecked: true
+              isChecked: false
               isStartup: false
               mem:
                 size: "0x0"
