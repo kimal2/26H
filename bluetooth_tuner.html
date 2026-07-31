@@ -330,6 +330,27 @@
     .parameter-row.odometer-row .odometer-input { grid-column: 2 / 4; }
     .parameter-row.odometer-row .send-one { grid-column: 4; }
 
+    .control-slot {
+      grid-column: 2 / 4;
+      display: flex;
+      align-items: center;
+      min-height: 38px;
+    }
+
+    .control-slot input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      accent-color: var(--green);
+    }
+
+    .parameter-row.control-row .send-one { grid-column: 4; }
+    .parameter-row.command-row .send-one {
+      grid-column: 2 / 5;
+      width: 120px;
+      justify-self: end;
+      padding: 0 12px;
+    }
+
     .send-one {
       padding: 0;
       color: var(--blue);
@@ -404,6 +425,12 @@
         grid-row: 2;
       }
       .parameter-row.odometer-row .send-one { grid-column: 3; grid-row: 1; }
+      .parameter-row.control-row .control-slot { grid-column: 2; grid-row: 1; }
+      .parameter-row.control-row .send-one { grid-column: 3; grid-row: 1; }
+      .parameter-row.command-row .send-one {
+        grid-column: 2 / 4;
+        grid-row: 1;
+      }
       .toolbar .toggle { width: 100%; margin-left: 0; }
       .telemetry-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
       .monitor-pane { grid-template-rows: 250px 180px; }
@@ -491,7 +518,10 @@
       { group: "滚球 PID", label: "比例", key: "ball_kp", min: -2, max: 2, step: 0.01, value: 0.05 },
       { group: "滚球 PID", label: "积分", key: "ball_ki", min: -2, max: 2, step: 0.01, value: 0 },
       { group: "滚球 PID", label: "微分", key: "ball_kd", min: -2, max: 2, step: 0.01, value: 0 },
-      { group: "MPU6050 前馈", label: "X 轴前馈", key: "ball_kff", min: -20, max: 20, step: 0.1, value: 0 }
+      { group: "MPU6050 前馈", label: "X 轴前馈", key: "ball_kff", min: -20, max: 20, step: 0.1, value: 0 },
+      { group: "步进电机", label: "运行速度 RPM", key: "motor_rpm", min: 0, max: 5000, step: 1, value: 120 },
+      { group: "步进电机", label: "电机使能", key: "motor_en", kind: "toggle", value: 1, sendAll: false },
+      { group: "步进电机", label: "当前位置设为零点", key: "motor_zero", kind: "command", value: 1, sendAll: false }
     ];
     const parameterGroupNames = [...new Set(parameters.map(item => item.group))];
     let activeParameterGroup = parameterGroupNames[0];
@@ -524,6 +554,9 @@
 
     function formatValue(parameter, value) {
       if (parameter.kind === "uint64") return String(value);
+      if ((parameter.kind === "toggle") || (parameter.kind === "command")) {
+        return String(Math.round(Number(value)));
+      }
       return Number(value).toFixed(parameterDecimals);
     }
 
@@ -752,7 +785,7 @@
     }
 
     function loadParameterValues() {
-      const defaultsVersion = "firmware-20260801-5";
+      const defaultsVersion = "firmware-20260801-6";
       if (localStorage.getItem("26h.defaultsVersion") !== defaultsVersion) {
         for (const parameter of parameters) {
           localStorage.removeItem(`26h.${parameter.key}`);
@@ -816,6 +849,44 @@
 
           const row = document.createElement("div");
           row.className = "parameter-row";
+          if (parameter.kind === "command") {
+            row.classList.add("command-row");
+            row.innerHTML = `
+              <div class="parameter-name"><strong>${parameter.label}</strong><code>${parameter.key}</code></div>
+              <button class="send-one" type="button">保存零点</button>`;
+            const sendButton = row.querySelector(".send-one");
+            sendButton.disabled = !serialPort?.writable || disconnecting;
+            sendButton.addEventListener("click", () => sendParameter(parameter.key));
+            section.appendChild(row);
+            continue;
+          }
+          if (parameter.kind === "toggle") {
+            row.classList.add("control-row");
+            row.innerHTML = `
+              <div class="parameter-name"><strong>${parameter.label}</strong><code>${parameter.key}</code></div>
+              <div class="control-slot"><input class="motor-toggle" type="checkbox" ${Number(initialValue) !== 0 ? "checked" : ""} aria-label="${parameter.label}"></div>
+              <button class="send-one" type="button">发送</button>`;
+            const toggle = row.querySelector(".motor-toggle");
+            const sendButton = row.querySelector(".send-one");
+            sendButton.disabled = !serialPort?.writable || disconnecting;
+            const updateToggle = () => {
+              const nextValue = toggle.checked ? 1 : 0;
+              values.set(parameter.key, nextValue);
+              localStorage.setItem(`26h.${parameter.key}`, String(nextValue));
+            };
+            toggle.addEventListener("change", () => {
+              updateToggle();
+              if (document.getElementById("autoSend").checked && serialPort?.writable) {
+                sendParameter(parameter.key);
+              }
+            });
+            sendButton.addEventListener("click", () => {
+              updateToggle();
+              sendParameter(parameter.key);
+            });
+            section.appendChild(row);
+            continue;
+          }
           if (parameter.kind === "uint64") {
             row.classList.add("odometer-row");
             row.innerHTML = `
@@ -925,7 +996,9 @@
     }
 
     async function sendAll() {
-      for (const parameter of parameters) await sendParameter(parameter.key);
+      for (const parameter of parameters) {
+        if (parameter.sendAll !== false) await sendParameter(parameter.key);
+      }
     }
 
     function handleReceivedText(text) {

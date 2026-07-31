@@ -19,7 +19,8 @@
 typedef enum {
     PARAM_RESULT_OK = 0,
     PARAM_RESULT_UNKNOWN,
-    PARAM_RESULT_RANGE
+    PARAM_RESULT_RANGE,
+    PARAM_RESULT_BUSY
 } ParameterResult_t;
 
 static uint8_t camera_rx_data[CAMERA_FRAME_SIZE];
@@ -117,6 +118,19 @@ static uint8_t Bluetooth_ValueInRange(float value, float minimum,
     return ((value >= minimum) && (value <= maximum)) ? 1U : 0U;
 }
 
+static uint8_t Bluetooth_ParseFloat(const char *text, float *value)
+{
+    char *end;
+    float parsed;
+
+    parsed = strtof(text, &end);
+    if ((end == text) || (*end != '\0')) {
+        return 0U;
+    }
+    *value = parsed;
+    return 1U;
+}
+
 static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
 {
     if (strcmp(key, "line_kp") == 0) {
@@ -170,6 +184,26 @@ static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
             return PARAM_RESULT_RANGE;
         }
         StepMotorTune.ball_kff = value;
+    } else if (strcmp(key, "motor_rpm") == 0) {
+        if ((Bluetooth_ValueInRange(value, 0.0f, 5000.0f) == 0U) ||
+            ((float)(uint16_t)value != value)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorTune.run_speed_rpm = (uint16_t)value;
+    } else if (strcmp(key, "motor_en") == 0) {
+        if ((value != 0.0f) && (value != 1.0f)) {
+            return PARAM_RESULT_RANGE;
+        }
+        if (!StepMotor_SetEnabled(value != 0.0f)) {
+            return PARAM_RESULT_BUSY;
+        }
+    } else if (strcmp(key, "motor_zero") == 0) {
+        if (value != 1.0f) {
+            return PARAM_RESULT_RANGE;
+        }
+        if (!StepMotor_SaveCurrentAsHome()) {
+            return PARAM_RESULT_BUSY;
+        }
     } else {
         return PARAM_RESULT_UNKNOWN;
     }
@@ -277,7 +311,11 @@ void Bluetooth_Process(void)
         return;
     }
 
-    value = (float)atof(comma + 1);
+    if (Bluetooth_ParseFloat(comma + 1, &value) == 0U) {
+        bluetooth_frame_ready = 0U;
+        Bluetooth_Send("[ERR,FORMAT]\r\n");
+        return;
+    }
     result = Bluetooth_SetParameter(key, value);
     bluetooth_frame_ready = 0U;
 
@@ -287,6 +325,8 @@ void Bluetooth_Process(void)
         Bluetooth_Send(response);
     } else if (result == PARAM_RESULT_RANGE) {
         Bluetooth_Send("[ERR,RANGE]\r\n");
+    } else if (result == PARAM_RESULT_BUSY) {
+        Bluetooth_Send("[ERR,BUSY]\r\n");
     } else {
         Bluetooth_Send("[ERR,UNKNOWN]\r\n");
     }

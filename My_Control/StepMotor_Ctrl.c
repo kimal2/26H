@@ -11,6 +11,7 @@ StepMotorTune_t StepMotorTune = {
     .ball_ki = STEPMOTOR_PID_KI,
     .ball_kd = STEPMOTOR_PID_KD,
     .ball_kff = STEPMOTOR_FEEDFORWARD_KFF,
+    .run_speed_rpm = STEPMOTOR_RUN_SPEED_RPM,
 };
 
 static PID_t BallPositionPID = {
@@ -29,12 +30,28 @@ static volatile uint32_t ball_sample_sequence;
 
 static uint32_t processed_sample_sequence;
 static uint32_t homing_start_tick;
+static uint32_t zero_save_start_tick;
 static float target_tube_angle_deg;
 static float last_sent_tube_angle_deg;
 static float ball_feedback_angle_deg;
 static volatile float feedforward_acceleration_g;
+static uint16_t last_sent_speed_rpm;
 static bool target_angle_valid;
 static bool command_sent;
+
+static void StepMotor_ResetControlAtZero(void)
+{
+    PID_Clear(&BallPositionPID);
+    target_tube_angle_deg = 0.0f;
+    last_sent_tube_angle_deg = 0.0f;
+    ball_feedback_angle_deg = 0.0f;
+    WaterTubeMotor.current_angle = 0.0f;
+    WaterTubeMotor.target_angle = 0.0f;
+    target_angle_valid = false;
+    command_sent = false;
+    last_sent_speed_rpm = 0U;
+    processed_sample_sequence = ball_sample_sequence;
+}
 
 static float StepMotor_ClampAngle(float angle_deg)
 {
@@ -68,6 +85,7 @@ static void StepMotor_SendTargetAngle(void)
     }
 
     if (command_sent &&
+        (last_sent_speed_rpm == StepMotorTune.run_speed_rpm) &&
         StepMotor_Abs(target_tube_angle_deg - last_sent_tube_angle_deg) <
             STEPMOTOR_COMMAND_DEADBAND_DEG) {
         return;
@@ -81,7 +99,7 @@ static void StepMotor_SendTargetAngle(void)
 
     Emm_V5_Pos_Control(&WaterTubeMotor,
                        direction,
-                       STEPMOTOR_RUN_SPEED_RPM,
+                       StepMotorTune.run_speed_rpm,
                        STEPMOTOR_RUN_ACCELERATION,
                        pulses,
                        STEPMOTOR_ABSOLUTE_POSITION_MODE,
@@ -89,11 +107,13 @@ static void StepMotor_SendTargetAngle(void)
 
     WaterTubeMotor.current_angle = target_tube_angle_deg;
     last_sent_tube_angle_deg = target_tube_angle_deg;
+    last_sent_speed_rpm = StepMotorTune.run_speed_rpm;
     command_sent = true;
 }
 
 void StepMotor_Init(void)
 {
+    HAL_Delay(800);//上电等待电机稳定
     WaterTubeMotor.huart = &huart4;
     WaterTubeMotor.ID = STEPMOTOR_MOTOR_ID;
     WaterTubeMotor.current_angle = 0.0f;
@@ -110,12 +130,10 @@ void StepMotor_Init(void)
     feedforward_acceleration_g = 0.0f;
     target_angle_valid = false;
     command_sent = false;
+    last_sent_speed_rpm = 0U;
 
-    motor_state = STEPMOTOR_STATE_HOMING;
-    Emm_V5_Origin_Trigger_Return(&WaterTubeMotor,
-                                 STEPMOTOR_HOME_MODE,
-                                 false);
-    homing_start_tick = HAL_GetTick();
+    motor_state = STEPMOTOR_STATE_ENABLING;
+    Emm_V5_En_Control(&WaterTubeMotor, true, false);
 }
 
 void StepMotor_SetBallX(uint16_t ball_x)
@@ -140,6 +158,55 @@ void StepMotor_SetTubeAngle(float tube_angle_deg)
     target_angle_valid = true;
 }
 
+bool StepMotor_SetEnabled(bool enabled)
+{
+    if ((motor_state == STEPMOTOR_STATE_UNINITIALIZED) ||
+        !StepMotor_UartReady()) {
+        return false;
+    }
+
+    if (enabled) {
+        if (motor_state == STEPMOTOR_STATE_READY) {
+            return true;
+        }
+        if (motor_state != STEPMOTOR_STATE_DISABLED) {
+            return false;
+        }
+        Emm_V5_En_Control(&WaterTubeMotor, true, false);
+        motor_state = STEPMOTOR_STATE_ENABLING;
+        return true;
+    }
+
+    if (motor_state == STEPMOTOR_STATE_DISABLED) {
+        return true;
+    }
+    if ((motor_state == STEPMOTOR_STATE_ZERO_SAVING) ||
+        (motor_state == STEPMOTOR_STATE_ZERO_CLEARING)) {
+        return false;
+    }
+
+    Emm_V5_En_Control(&WaterTubeMotor, false, false);
+    target_angle_valid = false;
+    command_sent = false;
+    last_sent_speed_rpm = 0U;
+    motor_state = STEPMOTOR_STATE_DISABLED;
+    return true;
+}
+
+bool StepMotor_SaveCurrentAsHome(void)
+{
+    if ((motor_state != STEPMOTOR_STATE_DISABLED) ||
+        !StepMotor_UartReady()) {
+        return false;
+    }
+
+    /* Keep the motor disabled while storing the hand-adjusted position. */
+    Emm_V5_Origin_Set_O(&WaterTubeMotor, true);
+    zero_save_start_tick = HAL_GetTick();
+    motor_state = STEPMOTOR_STATE_ZERO_SAVING;
+    return true;
+}
+
 void StepMotor_Task(void)
 {
     uint32_t sample_sequence;
@@ -149,12 +216,49 @@ void StepMotor_Task(void)
         return;
     }
 
+    if (motor_state == STEPMOTOR_STATE_ENABLING) {
+        if (!StepMotor_UartReady()) {
+            return;
+        }
+        Emm_V5_Origin_Trigger_Return(&WaterTubeMotor,
+                                     STEPMOTOR_HOME_MODE,
+                                     false);
+        homing_start_tick = HAL_GetTick();
+        motor_state = STEPMOTOR_STATE_HOMING;
+        return;
+    }
+
     if (motor_state == STEPMOTOR_STATE_HOMING) {
         if ((HAL_GetTick() - homing_start_tick) < STEPMOTOR_HOME_WAIT_MS) {
             return;
         }
 
+        StepMotor_ResetControlAtZero();
         motor_state = STEPMOTOR_STATE_READY;
+        return;
+    }
+
+    if (motor_state == STEPMOTOR_STATE_ZERO_SAVING) {
+        if (!StepMotor_UartReady() ||
+            ((HAL_GetTick() - zero_save_start_tick) <
+             STEPMOTOR_ZERO_SAVE_WAIT_MS)) {
+            return;
+        }
+        Emm_V5_Reset_CurPos_To_Zero(&WaterTubeMotor);
+        motor_state = STEPMOTOR_STATE_ZERO_CLEARING;
+        return;
+    }
+
+    if (motor_state == STEPMOTOR_STATE_ZERO_CLEARING) {
+        if (!StepMotor_UartReady()) {
+            return;
+        }
+        StepMotor_ResetControlAtZero();
+        motor_state = STEPMOTOR_STATE_DISABLED;
+        return;
+    }
+
+    if (motor_state != STEPMOTOR_STATE_READY) {
         return;
     }
 

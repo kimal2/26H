@@ -133,6 +133,12 @@ void Emm_V5_Stop_Now(StepMotor_t *M, bool snF)
     Emm_V5_Send(M, 5U);
 }
 
+/**
+  * @brief    设置单圈回零的零点位置
+  * @param    addr  ：电机地址
+  * @param    svF   ：是否存储标志，false为不存储，true为存储
+  * @retval   地址 + 功能码 + 命令状态 + 校验字节
+  */
 void Emm_V5_Origin_Set_O(StepMotor_t *M, bool svF)
 {
     M->tx_buf[0] = M->ID;
@@ -144,6 +150,13 @@ void Emm_V5_Origin_Set_O(StepMotor_t *M, bool svF)
     Emm_V5_Send(M, 5U);
 }
 
+/**
+  * @brief    触发回零
+  * @param    addr   ：电机地址
+  * @param    o_mode ：回零模式，0为单圈就近回零，1为单圈方向回零，2为多圈无限位碰撞回零，3为多圈有限位开关回零
+  * @param    snF   ：多机同步标志，false为不启用，true为启用
+  * @retval   地址 + 功能码 + 命令状态 + 校验字节
+  */
 void Emm_V5_Origin_Trigger_Return(StepMotor_t *M,
                                   uint8_t o_mode,
                                   bool snF)
