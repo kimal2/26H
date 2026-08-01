@@ -3,6 +3,8 @@
 #include "pid.h"
 #include "usart.h"
 
+#include <math.h>
+
 #define STEPMOTOR_ABSOLUTE_POSITION_MODE      1U
 
 StepMotor_t WaterTubeMotor;
@@ -54,6 +56,17 @@ StepMotorTune_t StepMotorQuestion4Tune = {
     .angle_max_deg = STEPMOTOR_Q4_ANGLE_MAX_DEG,
     .run_speed_rpm = STEPMOTOR_Q4_RUN_SPEED_RPM,
 };
+StepMotorReturnTune_t StepMotorQuestion4ReturnTune = {
+    .enabled = STEPMOTOR_Q4_RETURN_ENABLE,
+    .entry_error_px = STEPMOTOR_Q4_RETURN_ENTRY_ERROR_PX,
+    .exit_error_px = STEPMOTOR_Q4_RETURN_EXIT_ERROR_PX,
+    .target_accel_px_s2 = STEPMOTOR_Q4_RETURN_ACCEL_PX_S2,
+    .target_speed_max_px_s = STEPMOTOR_Q4_RETURN_SPEED_MAX_PX_S,
+    .angle_kp = STEPMOTOR_Q4_RETURN_ANGLE_KP,
+    .angle_kv = STEPMOTOR_Q4_RETURN_ANGLE_KV,
+    .angle_limit_deg = STEPMOTOR_Q4_RETURN_ANGLE_LIMIT_DEG,
+    .velocity_lpf_alpha = STEPMOTOR_Q4_RETURN_VELOCITY_LPF,
+};
 
 static PID_t BallPositionPID = {
     .Kp = STEPMOTOR_PID_KP,
@@ -69,13 +82,21 @@ static volatile StepMotorControlState_t motor_state = STEPMOTOR_STATE_UNINITIALI
 static volatile StepMotorControlProfile_t active_profile =
     STEPMOTOR_PROFILE_DEFAULT;
 static volatile bool profile_reset_pending;
+static volatile uint16_t camera_center_x = STEPMOTOR_CAMERA_CENTER_X;
 static volatile uint16_t latest_ball_x;
 static volatile uint16_t target_ball_x;
 static volatile uint32_t ball_sample_sequence;
 static volatile bool angle_override_enabled;
 static volatile float angle_override_deg;
+static volatile bool angle_override_speed_enabled;
+static volatile uint16_t angle_override_speed_rpm;
 static float filtered_ball_x;
 static bool ball_filter_initialized;
+static bool ball_velocity_initialized;
+static uint16_t ball_velocity_last_x;
+static uint32_t ball_velocity_last_tick;
+static float ball_velocity_px_s;
+static bool question4_return_active;
 
 static uint32_t processed_sample_sequence;
 static uint32_t homing_start_tick;
@@ -87,6 +108,11 @@ static volatile float feedforward_acceleration_g;
 static uint16_t last_sent_speed_rpm;
 static bool target_angle_valid;
 static bool command_sent;
+
+static void StepMotor_ResetQuestion4Return(uint16_t ball_x);
+static void StepMotor_UpdateBallVelocity(uint16_t ball_x);
+static float StepMotor_Question4ReturnAngle(uint16_t ball_x,
+                                            float pid_angle_deg);
 
 #if STEPMOTOR_PIXEL_SWEEP_TEST_ENABLE
 static uint16_t sweep_test_ball_x;
@@ -110,11 +136,13 @@ static StepMotorTune_t *StepMotor_GetActiveTune(void)
 
 static void StepMotor_ResetControlAtZero(void)
 {
+    uint16_t center_x = StepMotor_GetCameraCenterX();
+
     PID_Clear(&BallPositionPID);
     target_tube_angle_deg = 0.0f;
     last_sent_tube_angle_deg = 0.0f;
     ball_feedback_angle_deg = 0.0f;
-    target_ball_x = STEPMOTOR_CAMERA_CENTER_X;
+    target_ball_x = center_x;
     WaterTubeMotor.current_angle = 0.0f;
     WaterTubeMotor.target_angle = 0.0f;
     target_angle_valid = false;
@@ -122,6 +150,7 @@ static void StepMotor_ResetControlAtZero(void)
     last_sent_speed_rpm = 0U;
     angle_override_enabled = false;
     angle_override_deg = 0.0f;
+    StepMotor_ResetQuestion4Return(latest_ball_x);
     processed_sample_sequence = ball_sample_sequence;
 }
 
@@ -149,6 +178,135 @@ static float StepMotor_ClampAngle(float angle_deg)
 static float StepMotor_Abs(float value)
 {
     return (value < 0.0f) ? -value : value;
+}
+
+static float StepMotor_ClampFloat(float value, float minimum, float maximum)
+{
+    if (value < minimum) {
+        return minimum;
+    }
+    if (value > maximum) {
+        return maximum;
+    }
+    return value;
+}
+
+static float StepMotor_CopySign(float magnitude, float sign_source)
+{
+    return (sign_source < 0.0f) ? -magnitude : magnitude;
+}
+
+static void StepMotor_ResetBallVelocity(uint16_t ball_x)
+{
+    ball_velocity_last_x = ball_x;
+    ball_velocity_last_tick = HAL_GetTick();
+    ball_velocity_px_s = 0.0f;
+    ball_velocity_initialized = true;
+}
+
+static void StepMotor_UpdateBallVelocity(uint16_t ball_x)
+{
+    uint32_t now = HAL_GetTick();
+    uint32_t elapsed_ms;
+    float raw_velocity_px_s;
+    float alpha = StepMotorQuestion4ReturnTune.velocity_lpf_alpha;
+
+    if (!ball_velocity_initialized) {
+        StepMotor_ResetBallVelocity(ball_x);
+        return;
+    }
+
+    elapsed_ms = now - ball_velocity_last_tick;
+    if (elapsed_ms == 0U) {
+        ball_velocity_last_x = ball_x;
+        return;
+    }
+
+    raw_velocity_px_s = ((float)ball_x - (float)ball_velocity_last_x) *
+                        1000.0f / (float)elapsed_ms;
+    alpha = StepMotor_ClampFloat(alpha, 0.0f, 1.0f);
+    ball_velocity_px_s += alpha * (raw_velocity_px_s - ball_velocity_px_s);
+    ball_velocity_last_x = ball_x;
+    ball_velocity_last_tick = now;
+}
+
+static void StepMotor_ResetQuestion4Return(uint16_t ball_x)
+{
+    question4_return_active = false;
+    StepMotor_ResetBallVelocity(ball_x);
+}
+
+static float StepMotor_Question4ReturnAngle(uint16_t ball_x,
+                                            float pid_angle_deg)
+{
+    StepMotorReturnTune_t *return_tune = &StepMotorQuestion4ReturnTune;
+    float error_px;
+    float abs_error_px;
+    float entry_error_px;
+    float exit_error_px;
+    float target_accel_px_s2;
+    float target_speed_px_s;
+    float target_speed_max_px_s;
+    float velocity_error_px_s;
+    float return_angle_deg;
+    float angle_limit_deg;
+
+    if ((active_profile != STEPMOTOR_PROFILE_QUESTION4) ||
+        (return_tune->enabled == 0U)) {
+        question4_return_active = false;
+        return pid_angle_deg;
+    }
+
+    error_px = (float)StepMotor_GetCameraCenterX() - (float)ball_x;
+    abs_error_px = StepMotor_Abs(error_px);
+    entry_error_px = StepMotor_Abs(return_tune->entry_error_px);
+    exit_error_px = StepMotor_Abs(return_tune->exit_error_px);
+    if (entry_error_px < 1.0f) {
+        question4_return_active = false;
+        return pid_angle_deg;
+    }
+    if (exit_error_px > entry_error_px) {
+        exit_error_px = entry_error_px;
+    }
+
+    if (!question4_return_active && (abs_error_px >= entry_error_px)) {
+        question4_return_active = true;
+        PID_Clear(&BallPositionPID);
+    }
+    if (question4_return_active && (abs_error_px <= exit_error_px)) {
+        question4_return_active = false;
+        PID_Clear(&BallPositionPID);
+        return pid_angle_deg;
+    }
+    if (!question4_return_active) {
+        return pid_angle_deg;
+    }
+
+    target_accel_px_s2 = StepMotor_Abs(return_tune->target_accel_px_s2);
+    target_speed_max_px_s = StepMotor_Abs(return_tune->target_speed_max_px_s);
+    if ((target_accel_px_s2 < 1.0f) || (target_speed_max_px_s < 1.0f)) {
+        return pid_angle_deg;
+    }
+
+    target_speed_px_s = sqrtf(2.0f * target_accel_px_s2 * abs_error_px);
+    if (target_speed_px_s > target_speed_max_px_s) {
+        target_speed_px_s = target_speed_max_px_s;
+    }
+    target_speed_px_s = StepMotor_CopySign(target_speed_px_s, error_px);
+    velocity_error_px_s = target_speed_px_s - ball_velocity_px_s;
+
+    return_angle_deg = (return_tune->angle_kp * error_px) +
+                       (return_tune->angle_kv * velocity_error_px_s);
+    angle_limit_deg = StepMotor_Abs(return_tune->angle_limit_deg);
+    if (angle_limit_deg < 1.0f) {
+        angle_limit_deg = 1.0f;
+    } else if (angle_limit_deg > STEPMOTOR_TUBE_ANGLE_HARD_MAX_DEG) {
+        angle_limit_deg = STEPMOTOR_TUBE_ANGLE_HARD_MAX_DEG;
+    }
+
+    return StepMotor_ClampFloat(return_angle_deg,
+                                -angle_limit_deg,
+                                angle_limit_deg);
 }
 
 static void StepMotor_StoreBallX(uint16_t ball_x)
@@ -225,6 +383,7 @@ static bool StepMotor_UartReady(void)
 static void StepMotor_SendTargetAngle(void)
 {
     StepMotorTune_t *tune = StepMotor_GetActiveTune();
+    uint16_t speed_rpm = tune->run_speed_rpm;
     float motor_angle_deg;
     uint32_t pulses;
     uint8_t direction;
@@ -232,9 +391,12 @@ static void StepMotor_SendTargetAngle(void)
     if (!target_angle_valid || !StepMotor_UartReady()) {
         return;
     }
+    if (angle_override_enabled && angle_override_speed_enabled) {
+        speed_rpm = angle_override_speed_rpm;
+    }
 
     if (command_sent &&
-        (last_sent_speed_rpm == tune->run_speed_rpm) &&
+        (last_sent_speed_rpm == speed_rpm) &&
         StepMotor_Abs(target_tube_angle_deg - last_sent_tube_angle_deg) <
             STEPMOTOR_COMMAND_DEADBAND_DEG) {
         return;
@@ -248,7 +410,7 @@ static void StepMotor_SendTargetAngle(void)
 
     Emm_V5_Pos_Control(&WaterTubeMotor,
                        direction,
-                       tune->run_speed_rpm,
+                       speed_rpm,
                        STEPMOTOR_RUN_ACCELERATION,
                        pulses,
                        STEPMOTOR_ABSOLUTE_POSITION_MODE,
@@ -256,12 +418,14 @@ static void StepMotor_SendTargetAngle(void)
 
     WaterTubeMotor.current_angle = target_tube_angle_deg;
     last_sent_tube_angle_deg = target_tube_angle_deg;
-    last_sent_speed_rpm = tune->run_speed_rpm;
+    last_sent_speed_rpm = speed_rpm;
     command_sent = true;
 }
 
 void StepMotor_Init(void)
 {
+    uint16_t center_x = StepMotor_GetCameraCenterX();
+
     HAL_Delay(800);//上电等待电机稳定
     WaterTubeMotor.huart = &huart4;
     WaterTubeMotor.ID = STEPMOTOR_MOTOR_ID;
@@ -287,6 +451,13 @@ void StepMotor_Init(void)
     profile_reset_pending = false;
     angle_override_enabled = false;
     angle_override_deg = 0.0f;
+    angle_override_speed_enabled = false;
+    angle_override_speed_rpm = 0U;
+    ball_velocity_initialized = false;
+    ball_velocity_last_x = STEPMOTOR_CAMERA_CENTER_X;
+    ball_velocity_last_tick = HAL_GetTick();
+    ball_velocity_px_s = 0.0f;
+    question4_return_active = false;
 
     motor_state = STEPMOTOR_STATE_ENABLING;
     Emm_V5_En_Control(&WaterTubeMotor, true, false);
@@ -323,6 +494,7 @@ bool StepMotor_SetControlProfile(StepMotorControlProfile_t profile)
     if (active_profile != profile) {
         active_profile = profile;
         angle_override_enabled = false;
+        angle_override_speed_enabled = false;
         profile_reset_pending = true;
     }
     return true;
@@ -330,15 +502,26 @@ bool StepMotor_SetControlProfile(StepMotorControlProfile_t profile)
 
 void StepMotor_SetAngleOverride(bool enabled, float angle_deg)
 {
+    StepMotor_SetAngleOverrideWithSpeed(enabled, angle_deg, 0U);
+}
+
+void StepMotor_SetAngleOverrideWithSpeed(bool enabled,
+                                         float angle_deg,
+                                         uint16_t speed_rpm)
+{
     if (enabled) {
         angle_override_deg = StepMotor_ClampAngle(angle_deg);
         angle_override_enabled = true;
+        angle_override_speed_enabled = (speed_rpm != 0U) ? true : false;
+        angle_override_speed_rpm = speed_rpm;
         command_sent = false;
         return;
     }
 
     if (angle_override_enabled) {
         angle_override_enabled = false;
+        angle_override_speed_enabled = false;
+        angle_override_speed_rpm = 0U;
         profile_reset_pending = true;
     }
 }
@@ -481,6 +664,7 @@ void StepMotor_Task(void)
         filtered_ball_x = (float)latest_ball_x;
         ball_filter_initialized = true;
         feedforward_acceleration_g = 0.0f;
+        StepMotor_ResetQuestion4Return(latest_ball_x);
         command_sent = false;
         last_sent_speed_rpm = 0U;
         processed_sample_sequence = ball_sample_sequence - 1U;
@@ -502,6 +686,7 @@ void StepMotor_Task(void)
     if (sample_sequence != processed_sample_sequence) {
         ball_x = latest_ball_x;
         processed_sample_sequence = sample_sequence;
+        StepMotor_UpdateBallVelocity(ball_x);
 
         BallPositionPID.Kp = tune->ball_kp;
         BallPositionPID.Ki = tune->ball_ki;
@@ -514,7 +699,8 @@ void StepMotor_Task(void)
         BallPositionPID.target = (float)target_ball_x;
         BallPositionPID.actual = (float)ball_x;
         PID_Calc(&BallPositionPID);
-        ball_feedback_angle_deg = BallPositionPID.output;
+        ball_feedback_angle_deg = StepMotor_Question4ReturnAngle(
+            ball_x, BallPositionPID.output);
     }
 
 #if STEPMOTOR_PIXEL_SWEEP_TEST_ENABLE

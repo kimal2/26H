@@ -510,13 +510,13 @@
 
   <script>
     const parameters = [
-      { group: "循迹 PID", label: "比例", key: "line_kp", min: -20, max: 20, step: 0.1, value: 10 },
-      { group: "循迹 PID", label: "积分", key: "line_ki", min: -5, max: 5, step: 0.01, value: 0 },
-      { group: "循迹 PID", label: "微分", key: "line_kd", min: -20, max: 20, step: 0.1, value: 0 },
-      { group: "小车输出", label: "直线平均 PWM", key: "base_pwm", min: 0, max: 1000, step: 1, value: 300 },
-      { group: "小车输出", label: "原地转弯 PWM", key: "turn_pwm", min: 0, max: 1000, step: 1, value: 200 },
-      { group: "小车输出", label: "PID 差速上限", key: "line_max", min: 0, max: 1000, step: 1, value: 350 },
-      { group: "小车输出", label: "目标里程脉冲", key: "odo", kind: "uint64", value: "42075" },
+      { group: "第二问循迹", label: "比例", key: "q2_line_kp", min: -20, max: 20, step: 0.1, value: 10 },
+      { group: "第二问循迹", label: "积分", key: "q2_line_ki", min: -5, max: 5, step: 0.01, value: 0 },
+      { group: "第二问循迹", label: "微分", key: "q2_line_kd", min: -20, max: 20, step: 0.1, value: 0 },
+      { group: "第二问循迹", label: "直线平均 PWM", key: "q2_base_pwm", min: 0, max: 1000, step: 1, value: 300 },
+      { group: "第二问循迹", label: "原地转弯 PWM", key: "q2_turn_pwm", min: 0, max: 1000, step: 1, value: 200 },
+      { group: "第二问循迹", label: "PID 差速上限", key: "q2_line_max", min: 0, max: 1000, step: 1, value: 350 },
+      { group: "第二问循迹", label: "目标里程脉冲", key: "q2_odo", kind: "uint64", value: "42075" },
       { group: "滚球 PID", label: "比例", key: "ball_kp", min: -4, max: 4, step: 0.001, value: 0.001 },
       { group: "滚球 PID", label: "积分", key: "ball_ki", min: -4, max: 4, step: 0.01, value: 0.03 },
       { group: "滚球 PID", label: "微分", key: "ball_kd", min: -10, max: 10, step: 0.01, value: 0.05 },
@@ -545,21 +545,39 @@
       { group: "第三问刹车", label: "触发坐标 X", key: "q3b_x", min: 0, max: 640, step: 1, value: 355 },
       { group: "第三问刹车", label: "刹车角度", key: "q3b_angle", min: -30, max: 30, step: 0.5, value: 30 },
       { group: "第三问刹车", label: "保持时间 ms", key: "q3b_ms", min: 0, max: 5000, step: 10, value: 390 },
+      { group: "第三问刹车", label: "刹车速度 RPM", key: "q3b_rpm", min: 0, max: 5000, step: 1, value: 150 },
       { group: "第四问滚球", label: "比例", key: "q4_kp", min: -4, max: 4, step: 0.001, value: 0.001 },
       { group: "第四问滚球", label: "积分", key: "q4_ki", min: -4, max: 4, step: 0.01, value: 0.07 },
       { group: "第四问滚球", label: "微分", key: "q4_kd", min: -100, max: 100, step: 0.01, value: 0.8 },
       { group: "第四问滚球", label: "Y 轴前馈", key: "q4_kff", min: -500, max: 500, step: 1, value: 0 },
       { group: "第四问滚球", label: "坐标低通系数", key: "q4_ball_lpf", min: 0.01, max: 1, step: 0.01, value: 0.20 },
       { group: "第四问滚球", label: "IMU 低通系数", key: "q4_imu_lpf", min: 0.01, max: 1, step: 0.01, value: 0.01 },
+      { group: "第四问超限回拉", label: "启用", key: "q4_over_en", kind: "toggle", value: 1 },
+      { group: "第四问超限回拉", label: "进入阈值 px", key: "q4_over_entry", min: 1, max: 320, step: 1, value: 45 },
+      { group: "第四问超限回拉", label: "退出阈值 px", key: "q4_over_exit", min: 0, max: 320, step: 1, value: 12 },
+      { group: "第四问超限回拉", label: "回拉加速度 px/s2", key: "q4_ret_accel", min: 0, max: 10000, step: 10, value: 1800 },
+      { group: "第四问超限回拉", label: "最大回拉速度 px/s", key: "q4_ret_vmax", min: 0, max: 2000, step: 10, value: 280 },
+      { group: "第四问超限回拉", label: "位置回拉增益", key: "q4_ret_kp", min: -2, max: 2, step: 0.001, value: 0.015 },
+      { group: "第四问超限回拉", label: "速度回拉增益", key: "q4_ret_kv", min: -2, max: 2, step: 0.001, value: 0.030 },
+      { group: "第四问超限回拉", label: "回拉角限幅", key: "q4_ret_angle", min: 1, max: 30, step: 0.5, value: 20 },
+      { group: "第四问超限回拉", label: "速度低通系数", key: "q4_ret_vlpf", min: 0, max: 1, step: 0.01, value: 0.35 },
+      { group: "第四问驱动轮", label: "循迹比例", key: "q4_line_kp", min: -20, max: 20, step: 0.1, value: 10 },
+      { group: "第四问驱动轮", label: "循迹积分", key: "q4_line_ki", min: -5, max: 5, step: 0.01, value: 0 },
+      { group: "第四问驱动轮", label: "循迹微分", key: "q4_line_kd", min: -20, max: 20, step: 0.1, value: 0 },
+      { group: "第四问驱动轮", label: "直线速度 PWM", key: "q4_drive_pwm", min: 0, max: 1000, step: 1, value: 300 },
+      { group: "第四问驱动轮", label: "原地转弯 PWM", key: "q4_turn_pwm", min: 0, max: 1000, step: 1, value: 200 },
+      { group: "第四问驱动轮", label: "PID 差速上限", key: "q4_line_max", min: 0, max: 1000, step: 1, value: 350 },
+      { group: "第四问驱动轮", label: "加速度 PWM/s", key: "q4_drive_accel", min: 0, max: 10000, step: 10, value: 0 },
       { group: "第四问滚球", label: "运行速度 RPM", key: "q4_motor_rpm", min: 0, max: 5000, step: 1, value: 29 },
       { group: "第四问滚球", label: "最小角度", key: "q4_motor_min", min: -30, max: 0, step: 0.5, value: -20 },
       { group: "第四问滚球", label: "最大角度", key: "q4_motor_max", min: 0, max: 30, step: 0.5, value: 30 },
-      { group: "第四问滚球", label: "AB 目标里程脉冲", key: "q4_odo", kind: "uint64", value: "0", sendAll: false },
+      { group: "第四问滚球", label: "AB 目标里程脉冲", key: "q4_odo", kind: "uint64", value: "14000" },
       { group: "步进电机", label: "运行速度 RPM", key: "motor_rpm", min: 0, max: 5000, step: 1, value: 100 },
       { group: "步进电机", label: "最小角度", key: "motor_min", min: -30, max: 0, step: 0.5, value: -20 },
       { group: "步进电机", label: "最大角度", key: "motor_max", min: 0, max: 30, step: 0.5, value: 30 },
       { group: "步进电机", label: "电机使能", key: "motor_en", kind: "toggle", value: 1, sendAll: false },
-      { group: "步进电机", label: "当前位置设为零点", key: "motor_zero", kind: "command", value: 1, sendAll: false }
+      { group: "步进电机", label: "当前位置设为零点", key: "motor_zero", kind: "command", value: 1, sendAll: false, buttonText: "保存零点" },
+      { group: "系统", label: "保存全部参数到 Flash", key: "save_all", kind: "command", value: 1, sendAll: false, buttonText: "保存全部" }
     ];
     const parameterGroupNames = [...new Set(parameters.map(item => item.group))];
     let activeParameterGroup = parameterGroupNames[0];
@@ -571,6 +589,7 @@
     const telemetrySamples = [];
     const coordinateSamples = [];
     const recentWaveMilliseconds = 10000;
+    const interCommandDelayMs = 25;
     let telemetryStartTime = null;
     let waveformMode = "all";
     const values = new Map();
@@ -868,7 +887,7 @@
     }
 
     function loadParameterValues() {
-      const defaultsVersion = "firmware-20260801-8";
+      const defaultsVersion = "firmware-20260801-11";
       if (localStorage.getItem("26h.defaultsVersion") !== defaultsVersion) {
         for (const parameter of parameters) {
           localStorage.removeItem(`26h.${parameter.key}`);
@@ -876,14 +895,18 @@
         localStorage.setItem("26h.defaultsVersion", defaultsVersion);
       }
 
-      const stableDefaultsVersion = "robot-stable-20260801-1";
+      const stableDefaultsVersion = "robot-stable-20260801-3";
       if (localStorage.getItem("26h.stableDefaultsVersion") !== stableDefaultsVersion) {
         const stableKeys = [
-          "q3b_x", "q3b_angle", "q3b_ms",
+          "q3b_x", "q3b_angle", "q3b_ms", "q3b_rpm",
           "q3n_kp", "q3n_ki", "q3n_kd", "q3n_kff", "q3n_ball_lpf",
           "q3n_imu_lpf", "q3n_motor_rpm", "q3n_motor_min", "q3n_motor_max",
           "q3_kp", "q3_ki", "q3_kd", "q3_kff", "q3_ball_lpf",
           "q3_imu_lpf", "q3_motor_rpm", "q3_motor_min", "q3_motor_max",
+          "q2_line_kp", "q2_line_ki", "q2_line_kd", "q2_base_pwm",
+          "q2_turn_pwm", "q2_line_max", "q2_odo",
+          "q4_line_kp", "q4_line_ki", "q4_line_kd", "q4_turn_pwm",
+          "q4_line_max", "q4_drive_pwm", "q4_drive_accel", "q4_odo",
           "ball_kp", "ball_ki", "ball_kd", "ball_lpf",
           "motor_rpm", "motor_min", "motor_max"
         ];
@@ -892,7 +915,10 @@
       }
 
       if (localStorage.getItem("26h.pwmRange") !== "1000") {
-        for (const key of ["base_pwm", "turn_pwm", "line_max"]) {
+        for (const key of [
+          "q2_base_pwm", "q2_turn_pwm", "q2_line_max",
+          "q4_drive_pwm", "q4_turn_pwm", "q4_line_max"
+        ]) {
           const savedValue = localStorage.getItem(`26h.${key}`);
           if (savedValue !== null && Number(savedValue) <= 100) {
             localStorage.setItem(`26h.${key}`, String(Number(savedValue) * 10));
@@ -951,10 +977,13 @@
             row.classList.add("command-row");
             row.innerHTML = `
               <div class="parameter-name"><strong>${parameter.label}</strong><code>${parameter.key}</code></div>
-              <button class="send-one" type="button">保存零点</button>`;
+              <button class="send-one" type="button">${parameter.buttonText ?? parameter.label}</button>`;
             const sendButton = row.querySelector(".send-one");
             sendButton.disabled = !serialPort?.writable || disconnecting;
-            sendButton.addEventListener("click", () => sendParameter(parameter.key));
+            sendButton.addEventListener("click", () => {
+              if (parameter.key === "save_all") saveAllToFlash();
+              else sendParameter(parameter.key);
+            });
             section.appendChild(row);
             continue;
           }
@@ -1093,10 +1122,28 @@
       return enqueueText(command);
     }
 
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     async function sendAll() {
       for (const parameter of parameters) {
-        if (parameter.sendAll !== false) await sendParameter(parameter.key);
+        if (parameter.sendAll !== false) {
+          await sendParameter(parameter.key);
+          await delay(interCommandDelayMs);
+        }
       }
+    }
+
+    async function saveAllToFlash() {
+      for (const parameter of parameters) {
+        if (parameter.key === "save_all") continue;
+        if (parameter.kind === "command") continue;
+        if ((parameter.kind === "toggle") && (parameter.sendAll === false)) continue;
+        await sendParameter(parameter.key);
+        await delay(interCommandDelayMs);
+      }
+      await sendParameter("save_all");
     }
 
     function handleReceivedText(text) {

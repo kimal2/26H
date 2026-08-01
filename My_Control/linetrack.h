@@ -40,18 +40,23 @@ typedef struct {
     volatile Car_State car_state;
 } Tracker_t;
 
-extern TrackingTune_t TrackingTune;
+extern TrackingTune_t TrackingQuestion2Tune;
+extern TrackingTune_t TrackingQuestion4Tune;
 
 void Tracking_Init(void);
 void Tracking_Start(void);
 void Tracking_Stop(void);
 void Tracking_Toggle(void);
+void Tracking_SetTune(TrackingTune_t *tune);
+TrackingTune_t *Tracking_GetTune(void);
 TrackingEvent Tracking_Update(void);
 Car_State Tracking_GetState(void);
 uint8_t Tracking_IsReady(void);
 int8_t Tracking_GetLineError(void);
 uint8_t Tracking_GetBlackCount(void);
 float Tracking_GetDiffPWM(void);
+void Tracking_SetDriveAcceleration(float pwm_per_second);
+float Tracking_GetDriveAcceleration(void);
 void Tracking_SetOdometerTarget(uint64_t target_counts);
 uint64_t Tracking_GetOdometerTarget(void);
 uint64_t Tracking_GetOdometerCounts(void);

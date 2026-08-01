@@ -4,6 +4,7 @@
 #include "linetrack.h"
 #include "StepMotor_Ctrl.h"
 #include "usart.h"
+#include "stm32f4xx_hal_flash_ex.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,13 +17,73 @@
 #define BLUETOOTH_FRAME_SIZE   40U
 #define BLUETOOTH_KEY_SIZE     16U
 #define LINE_TELEMETRY_PERIOD_MS  50U
+#define FLASH_SETTINGS_ADDRESS 0x08060000UL
+#define FLASH_SETTINGS_MAGIC   0x48363253UL
+#define FLASH_SETTINGS_VERSION 4UL
 
 typedef enum {
     PARAM_RESULT_OK = 0,
     PARAM_RESULT_UNKNOWN,
     PARAM_RESULT_RANGE,
-    PARAM_RESULT_BUSY
+    PARAM_RESULT_BUSY,
+    PARAM_RESULT_FLASH
 } ParameterResult_t;
+
+typedef struct {
+    float line_kp;
+    float line_ki;
+    float line_kd;
+    float base_pwm;
+    float turn_pwm;
+    float max_correction;
+} FlashTrackingTune_t;
+
+typedef struct {
+    float ball_kp;
+    float ball_ki;
+    float ball_kd;
+    float ball_kff;
+    float feedforward_lpf_alpha;
+    float ball_lpf_alpha;
+    float angle_bias_deg;
+    float angle_min_deg;
+    float angle_max_deg;
+    uint16_t run_speed_rpm;
+    uint16_t reserved;
+} FlashStepMotorTune_t;
+
+typedef struct {
+    uint32_t enabled;
+    float entry_error_px;
+    float exit_error_px;
+    float target_accel_px_s2;
+    float target_speed_max_px_s;
+    float angle_kp;
+    float angle_kv;
+    float angle_limit_deg;
+    float velocity_lpf_alpha;
+} FlashStepMotorReturnTune_t;
+
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t size;
+    FlashTrackingTune_t tracking_q2;
+    FlashTrackingTune_t tracking_q4;
+    FlashStepMotorTune_t step_default;
+    FlashStepMotorTune_t step_q3;
+    FlashStepMotorTune_t step_q3_negative;
+    FlashStepMotorTune_t step_q4;
+    FlashStepMotorReturnTune_t q4_return;
+    uint16_t q3_brake_trigger_x;
+    uint16_t q3_brake_speed_rpm;
+    float q3_brake_angle_deg;
+    uint32_t q3_brake_duration_ms;
+    uint64_t q2_odometer_target;
+    uint64_t q4_odometer_target;
+    float q4_drive_acceleration;
+    uint32_t crc32;
+} FlashSettings_t;
 
 static uint8_t camera_rx_data[CAMERA_FRAME_SIZE];
 static uint8_t bluetooth_rx_data[BLUETOOTH_RX_SIZE];
@@ -33,6 +94,268 @@ static uint8_t bluetooth_frame_receiving;
 static uint32_t line_telemetry_tick;
 static volatile uint16_t camera_debug_ball_x;
 static volatile uint8_t camera_debug_pending;
+static uint8_t flash_settings_loaded;
+
+static uint32_t FlashSettings_CalculateCrc(const FlashSettings_t *settings)
+{
+    const uint8_t *data = (const uint8_t *)settings;
+    uint32_t crc = 2166136261UL;
+    uint32_t index;
+    uint32_t length = (uint32_t)(sizeof(FlashSettings_t) -
+                                 sizeof(settings->crc32));
+
+    for (index = 0U; index < length; index++) {
+        crc ^= data[index];
+        crc *= 16777619UL;
+    }
+    return crc;
+}
+
+static void FlashSettings_CopyTrackingTuneFromRuntime(
+    FlashTrackingTune_t *target,
+    const TrackingTune_t *source)
+{
+    target->line_kp = source->line_kp;
+    target->line_ki = source->line_ki;
+    target->line_kd = source->line_kd;
+    target->base_pwm = source->base_pwm;
+    target->turn_pwm = source->turn_pwm;
+    target->max_correction = source->max_correction;
+}
+
+static void FlashSettings_CopyTrackingTuneToRuntime(
+    TrackingTune_t *target,
+    const FlashTrackingTune_t *source)
+{
+    target->line_kp = source->line_kp;
+    target->line_ki = source->line_ki;
+    target->line_kd = source->line_kd;
+    target->base_pwm = source->base_pwm;
+    target->turn_pwm = source->turn_pwm;
+    target->max_correction = source->max_correction;
+}
+
+static void FlashSettings_CopyStepTuneFromRuntime(FlashStepMotorTune_t *target,
+                                                  const StepMotorTune_t *source)
+{
+    target->ball_kp = source->ball_kp;
+    target->ball_ki = source->ball_ki;
+    target->ball_kd = source->ball_kd;
+    target->ball_kff = source->ball_kff;
+    target->feedforward_lpf_alpha = source->feedforward_lpf_alpha;
+    target->ball_lpf_alpha = source->ball_lpf_alpha;
+    target->angle_bias_deg = source->angle_bias_deg;
+    target->angle_min_deg = source->angle_min_deg;
+    target->angle_max_deg = source->angle_max_deg;
+    target->run_speed_rpm = source->run_speed_rpm;
+    target->reserved = 0U;
+}
+
+static void FlashSettings_CopyStepTuneToRuntime(StepMotorTune_t *target,
+                                                const FlashStepMotorTune_t *source)
+{
+    target->ball_kp = source->ball_kp;
+    target->ball_ki = source->ball_ki;
+    target->ball_kd = source->ball_kd;
+    target->ball_kff = source->ball_kff;
+    target->feedforward_lpf_alpha = source->feedforward_lpf_alpha;
+    target->ball_lpf_alpha = source->ball_lpf_alpha;
+    target->angle_bias_deg = source->angle_bias_deg;
+    target->angle_min_deg = source->angle_min_deg;
+    target->angle_max_deg = source->angle_max_deg;
+    target->run_speed_rpm = source->run_speed_rpm;
+}
+
+static void FlashSettings_CopyReturnTuneFromRuntime(
+    FlashStepMotorReturnTune_t *target,
+    const StepMotorReturnTune_t *source)
+{
+    target->enabled = source->enabled;
+    target->entry_error_px = source->entry_error_px;
+    target->exit_error_px = source->exit_error_px;
+    target->target_accel_px_s2 = source->target_accel_px_s2;
+    target->target_speed_max_px_s = source->target_speed_max_px_s;
+    target->angle_kp = source->angle_kp;
+    target->angle_kv = source->angle_kv;
+    target->angle_limit_deg = source->angle_limit_deg;
+    target->velocity_lpf_alpha = source->velocity_lpf_alpha;
+}
+
+static void FlashSettings_CopyReturnTuneToRuntime(
+    StepMotorReturnTune_t *target,
+    const FlashStepMotorReturnTune_t *source)
+{
+    target->enabled = (source->enabled != 0U) ? 1U : 0U;
+    target->entry_error_px = source->entry_error_px;
+    target->exit_error_px = source->exit_error_px;
+    target->target_accel_px_s2 = source->target_accel_px_s2;
+    target->target_speed_max_px_s = source->target_speed_max_px_s;
+    target->angle_kp = source->angle_kp;
+    target->angle_kv = source->angle_kv;
+    target->angle_limit_deg = source->angle_limit_deg;
+    target->velocity_lpf_alpha = source->velocity_lpf_alpha;
+}
+
+static void FlashSettings_Capture(FlashSettings_t *settings)
+{
+    (void)memset(settings, 0, sizeof(*settings));
+    settings->magic = FLASH_SETTINGS_MAGIC;
+    settings->version = FLASH_SETTINGS_VERSION;
+    settings->size = sizeof(*settings);
+
+    FlashSettings_CopyTrackingTuneFromRuntime(&settings->tracking_q2,
+                                              &TrackingQuestion2Tune);
+    FlashSettings_CopyTrackingTuneFromRuntime(&settings->tracking_q4,
+                                              &TrackingQuestion4Tune);
+
+    FlashSettings_CopyStepTuneFromRuntime(&settings->step_default,
+                                          &StepMotorTune);
+    FlashSettings_CopyStepTuneFromRuntime(&settings->step_q3,
+                                          &StepMotorQuestion3Tune);
+    FlashSettings_CopyStepTuneFromRuntime(&settings->step_q3_negative,
+                                          &StepMotorQuestion3NegativeTune);
+    FlashSettings_CopyStepTuneFromRuntime(&settings->step_q4,
+                                          &StepMotorQuestion4Tune);
+    FlashSettings_CopyReturnTuneFromRuntime(&settings->q4_return,
+                                            &StepMotorQuestion4ReturnTune);
+
+    settings->q3_brake_trigger_x =
+        DisplayTask_GetQuestion3BrakeTriggerX();
+    settings->q3_brake_speed_rpm =
+        DisplayTask_GetQuestion3BrakeSpeed();
+    settings->q3_brake_angle_deg = DisplayTask_GetQuestion3BrakeAngle();
+    settings->q3_brake_duration_ms =
+        DisplayTask_GetQuestion3BrakeDuration();
+    settings->q2_odometer_target =
+        DisplayTask_GetQuestion2OdometerTarget();
+    settings->q4_odometer_target =
+        DisplayTask_GetQuestion4OdometerTarget();
+    settings->q4_drive_acceleration =
+        DisplayTask_GetQuestion4DriveAcceleration();
+    settings->crc32 = FlashSettings_CalculateCrc(settings);
+}
+
+static uint8_t FlashSettings_IsValid(const FlashSettings_t *settings)
+{
+    if ((settings->magic != FLASH_SETTINGS_MAGIC) ||
+        (settings->version != FLASH_SETTINGS_VERSION) ||
+        (settings->size != sizeof(FlashSettings_t))) {
+        return 0U;
+    }
+    return (settings->crc32 == FlashSettings_CalculateCrc(settings)) ? 1U : 0U;
+}
+
+static void FlashSettings_Apply(const FlashSettings_t *settings)
+{
+    FlashSettings_CopyTrackingTuneToRuntime(&TrackingQuestion2Tune,
+                                            &settings->tracking_q2);
+    FlashSettings_CopyTrackingTuneToRuntime(&TrackingQuestion4Tune,
+                                            &settings->tracking_q4);
+    Tracking_SetTune(&TrackingQuestion2Tune);
+    DisplayTask_SetQuestion2OdometerTarget(settings->q2_odometer_target);
+    Tracking_SetOdometerTarget(settings->q2_odometer_target);
+
+    FlashSettings_CopyStepTuneToRuntime(&StepMotorTune,
+                                        &settings->step_default);
+    FlashSettings_CopyStepTuneToRuntime(&StepMotorQuestion3Tune,
+                                        &settings->step_q3);
+    FlashSettings_CopyStepTuneToRuntime(&StepMotorQuestion3NegativeTune,
+                                        &settings->step_q3_negative);
+    FlashSettings_CopyStepTuneToRuntime(&StepMotorQuestion4Tune,
+                                        &settings->step_q4);
+    FlashSettings_CopyReturnTuneToRuntime(&StepMotorQuestion4ReturnTune,
+                                          &settings->q4_return);
+
+    DisplayTask_SetQuestion3BrakeTriggerX(settings->q3_brake_trigger_x);
+    DisplayTask_SetQuestion3BrakeSpeed(settings->q3_brake_speed_rpm);
+    DisplayTask_SetQuestion3BrakeAngle(settings->q3_brake_angle_deg);
+    DisplayTask_SetQuestion3BrakeDuration(settings->q3_brake_duration_ms);
+    DisplayTask_SetQuestion4OdometerTarget(settings->q4_odometer_target);
+    DisplayTask_SetQuestion4DriveAcceleration(
+        settings->q4_drive_acceleration);
+}
+
+static void FlashSettings_LoadOnce(void)
+{
+    const FlashSettings_t *settings =
+        (const FlashSettings_t *)FLASH_SETTINGS_ADDRESS;
+
+    if (flash_settings_loaded != 0U) {
+        return;
+    }
+    flash_settings_loaded = 1U;
+    if (FlashSettings_IsValid(settings) != 0U) {
+        FlashSettings_Apply(settings);
+    }
+}
+
+static uint8_t FlashSettings_CanSaveNow(void)
+{
+    StepMotorControlState_t state = StepMotor_GetState();
+
+    if ((Tracking_IsReady() != 0U) &&
+        (Tracking_GetState() != CAR_STATE_STOP)) {
+        return 0U;
+    }
+
+    return ((state == STEPMOTOR_STATE_READY) ||
+            (state == STEPMOTOR_STATE_DISABLED)) ? 1U : 0U;
+}
+
+static ParameterResult_t FlashSettings_SaveAll(void)
+{
+    FLASH_EraseInitTypeDef erase_init;
+    FlashSettings_t settings;
+    HAL_StatusTypeDef status;
+    uint32_t sector_error = 0U;
+    uint32_t offset;
+
+    if (FlashSettings_CanSaveNow() == 0U) {
+        return PARAM_RESULT_BUSY;
+    }
+
+    FlashSettings_Capture(&settings);
+
+    status = HAL_FLASH_Unlock();
+    if (status != HAL_OK) {
+        return PARAM_RESULT_FLASH;
+    }
+
+    __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR |
+                           FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR |
+                           FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR);
+
+    erase_init.TypeErase = FLASH_TYPEERASE_SECTORS;
+    erase_init.Sector = FLASH_SECTOR_7;
+    erase_init.NbSectors = 1U;
+    erase_init.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+
+    status = HAL_FLASHEx_Erase(&erase_init, &sector_error);
+    if ((status == HAL_OK) && (sector_error == 0xFFFFFFFFU)) {
+        const uint8_t *source = (const uint8_t *)&settings;
+
+        for (offset = 0U; offset < sizeof(settings); offset += 4U) {
+            uint32_t word = 0xFFFFFFFFUL;
+            uint32_t copy_length = sizeof(settings) - offset;
+
+            if (copy_length > 4U) {
+                copy_length = 4U;
+            }
+            (void)memcpy(&word, &source[offset], copy_length);
+            status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,
+                                       FLASH_SETTINGS_ADDRESS + offset,
+                                       word);
+            if (status != HAL_OK) {
+                break;
+            }
+        }
+    } else {
+        status = HAL_ERROR;
+    }
+
+    (void)HAL_FLASH_Lock();
+    return (status == HAL_OK) ? PARAM_RESULT_OK : PARAM_RESULT_FLASH;
+}
 
 static char *Bluetooth_AppendUInt64(char *destination, uint64_t value)
 {
@@ -134,39 +457,88 @@ static uint8_t Bluetooth_ParseFloat(const char *text, float *value)
     return 1U;
 }
 
+static ParameterResult_t Bluetooth_SetTrackingParameter(TrackingTune_t *tune,
+                                                        const char *parameter,
+                                                        float value)
+{
+    if (strcmp(parameter, "kp") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        tune->line_kp = value;
+    } else if (strcmp(parameter, "ki") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        tune->line_ki = value;
+    } else if (strcmp(parameter, "kd") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        tune->line_kd = value;
+    } else if (strcmp(parameter, "base") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, TRACKING_PWM_MAX) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        tune->base_pwm = value;
+    } else if (strcmp(parameter, "turn") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, TRACKING_PWM_MAX) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        tune->turn_pwm = value;
+    } else if (strcmp(parameter, "max") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, TRACKING_PWM_MAX) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        tune->max_correction = value;
+    } else {
+        return PARAM_RESULT_UNKNOWN;
+    }
+    return PARAM_RESULT_OK;
+}
+
 static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
 {
-    if (strcmp(key, "line_kp") == 0) {
-        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
-            return PARAM_RESULT_RANGE;
-        }
-        TrackingTune.line_kp = value;
-    } else if (strcmp(key, "line_ki") == 0) {
-        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
-            return PARAM_RESULT_RANGE;
-        }
-        TrackingTune.line_ki = value;
-    } else if (strcmp(key, "line_kd") == 0) {
-        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
-            return PARAM_RESULT_RANGE;
-        }
-        TrackingTune.line_kd = value;
+    if ((strcmp(key, "line_kp") == 0) ||
+        (strcmp(key, "q2_line_kp") == 0)) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion2Tune, "kp",
+                                              value);
+    } else if ((strcmp(key, "line_ki") == 0) ||
+               (strcmp(key, "q2_line_ki") == 0)) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion2Tune, "ki",
+                                              value);
+    } else if ((strcmp(key, "line_kd") == 0) ||
+               (strcmp(key, "q2_line_kd") == 0)) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion2Tune, "kd",
+                                              value);
     } else if ((strcmp(key, "base_pwm") == 0) ||
-               (strcmp(key, "base_speed") == 0)) {
-        if (Bluetooth_ValueInRange(value, 0.0f, TRACKING_PWM_MAX) == 0U) {
-            return PARAM_RESULT_RANGE;
-        }
-        TrackingTune.base_pwm = value;
-    } else if (strcmp(key, "turn_pwm") == 0) {
-        if (Bluetooth_ValueInRange(value, 0.0f, TRACKING_PWM_MAX) == 0U) {
-            return PARAM_RESULT_RANGE;
-        }
-        TrackingTune.turn_pwm = value;
-    } else if (strcmp(key, "line_max") == 0) {
-        if (Bluetooth_ValueInRange(value, 0.0f, TRACKING_PWM_MAX) == 0U) {
-            return PARAM_RESULT_RANGE;
-        }
-        TrackingTune.max_correction = value;
+               (strcmp(key, "base_speed") == 0) ||
+               (strcmp(key, "q2_base_pwm") == 0)) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion2Tune, "base",
+                                              value);
+    } else if ((strcmp(key, "turn_pwm") == 0) ||
+               (strcmp(key, "q2_turn_pwm") == 0)) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion2Tune, "turn",
+                                              value);
+    } else if ((strcmp(key, "line_max") == 0) ||
+               (strcmp(key, "q2_line_max") == 0)) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion2Tune, "max",
+                                              value);
+    } else if (strcmp(key, "q4_line_kp") == 0) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion4Tune, "kp",
+                                              value);
+    } else if (strcmp(key, "q4_line_ki") == 0) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion4Tune, "ki",
+                                              value);
+    } else if (strcmp(key, "q4_line_kd") == 0) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion4Tune, "kd",
+                                              value);
+    } else if (strcmp(key, "q4_turn_pwm") == 0) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion4Tune, "turn",
+                                              value);
+    } else if (strcmp(key, "q4_line_max") == 0) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion4Tune, "max",
+                                              value);
     } else if (strcmp(key, "ball_kp") == 0) {
         if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
             return PARAM_RESULT_RANGE;
@@ -346,6 +718,12 @@ static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
             return PARAM_RESULT_RANGE;
         }
         DisplayTask_SetQuestion3BrakeDuration((uint32_t)value);
+    } else if (strcmp(key, "q3b_rpm") == 0) {
+        if ((Bluetooth_ValueInRange(value, 0.0f, 5000.0f) == 0U) ||
+            ((float)(uint16_t)value != value)) {
+            return PARAM_RESULT_RANGE;
+        }
+        DisplayTask_SetQuestion3BrakeSpeed((uint16_t)value);
     } else if (strcmp(key, "q4_kp") == 0) {
         if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
             return PARAM_RESULT_RANGE;
@@ -376,6 +754,54 @@ static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
             return PARAM_RESULT_RANGE;
         }
         StepMotorQuestion4Tune.feedforward_lpf_alpha = value;
+    } else if (strcmp(key, "q4_over_en") == 0) {
+        if ((value != 0.0f) && (value != 1.0f)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4ReturnTune.enabled = (value != 0.0f) ? 1U : 0U;
+    } else if (strcmp(key, "q4_over_entry") == 0) {
+        if ((Bluetooth_ValueInRange(value, 1.0f, 320.0f) == 0U) ||
+            (value <= StepMotorQuestion4ReturnTune.exit_error_px)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4ReturnTune.entry_error_px = value;
+    } else if (strcmp(key, "q4_over_exit") == 0) {
+        if ((Bluetooth_ValueInRange(value, 0.0f, 320.0f) == 0U) ||
+            (value >= StepMotorQuestion4ReturnTune.entry_error_px)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4ReturnTune.exit_error_px = value;
+    } else if (strcmp(key, "q4_ret_accel") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 10000.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4ReturnTune.target_accel_px_s2 = value;
+    } else if (strcmp(key, "q4_ret_vmax") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 2000.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4ReturnTune.target_speed_max_px_s = value;
+    } else if (strcmp(key, "q4_ret_kp") == 0) {
+        if (Bluetooth_ValueInRange(value, -2.0f, 2.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4ReturnTune.angle_kp = value;
+    } else if (strcmp(key, "q4_ret_kv") == 0) {
+        if (Bluetooth_ValueInRange(value, -2.0f, 2.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4ReturnTune.angle_kv = value;
+    } else if (strcmp(key, "q4_ret_angle") == 0) {
+        if (Bluetooth_ValueInRange(
+                value, 1.0f, STEPMOTOR_TUBE_ANGLE_HARD_MAX_DEG) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4ReturnTune.angle_limit_deg = value;
+    } else if (strcmp(key, "q4_ret_vlpf") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 1.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4ReturnTune.velocity_lpf_alpha = value;
     } else if (strcmp(key, "q4_motor_min") == 0) {
         if ((Bluetooth_ValueInRange(
                  value, STEPMOTOR_TUBE_ANGLE_HARD_MIN_DEG, 0.0f) == 0U) ||
@@ -396,6 +822,16 @@ static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
             return PARAM_RESULT_RANGE;
         }
         StepMotorQuestion4Tune.run_speed_rpm = (uint16_t)value;
+    } else if ((strcmp(key, "q4_drive_pwm") == 0) ||
+               (strcmp(key, "q4_drive_speed") == 0)) {
+        return Bluetooth_SetTrackingParameter(&TrackingQuestion4Tune, "base",
+                                              value);
+    } else if (strcmp(key, "q4_drive_accel") == 0) {
+        if (Bluetooth_ValueInRange(
+                value, 0.0f, QUESTION4_DRIVE_ACCEL_MAX) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        DisplayTask_SetQuestion4DriveAcceleration(value);
     } else if (strcmp(key, "motor_en") == 0) {
         if ((value != 0.0f) && (value != 1.0f)) {
             return PARAM_RESULT_RANGE;
@@ -410,6 +846,11 @@ static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
         if (!StepMotor_SaveCurrentAsHome()) {
             return PARAM_RESULT_BUSY;
         }
+    } else if (strcmp(key, "save_all") == 0) {
+        if (value != 1.0f) {
+            return PARAM_RESULT_RANGE;
+        }
+        return FlashSettings_SaveAll();
     } else {
         return PARAM_RESULT_UNKNOWN;
     }
@@ -456,6 +897,7 @@ HAL_StatusTypeDef UartReceiveStart(void)
     HAL_StatusTypeDef camera_status;
     HAL_StatusTypeDef bluetooth_status;
 
+    FlashSettings_LoadOnce();
     camera_status = Camera_StartReceive();
     bluetooth_status = Bluetooth_StartReceive();
     return (camera_status != HAL_OK) ? camera_status : bluetooth_status;
@@ -512,7 +954,9 @@ void Bluetooth_Process(void)
     key[key_length] = '\0';
     *closing_bracket = '\0';
 
-    if ((strcmp(key, "odo") == 0) || (strcmp(key, "q4_odo") == 0)) {
+    if ((strcmp(key, "odo") == 0) ||
+        (strcmp(key, "q2_odo") == 0) ||
+        (strcmp(key, "q4_odo") == 0)) {
         bluetooth_frame_ready = 0U;
         if (Bluetooth_ParseUInt64(comma + 1, &odometer_target) == 0U) {
             Bluetooth_Send("[ERR,RANGE]\r\n");
@@ -521,7 +965,10 @@ void Bluetooth_Process(void)
         if (strcmp(key, "q4_odo") == 0) {
             DisplayTask_SetQuestion4OdometerTarget(odometer_target);
         } else {
-            Tracking_SetOdometerTarget(odometer_target);
+            DisplayTask_SetQuestion2OdometerTarget(odometer_target);
+            if (Tracking_GetTune() == &TrackingQuestion2Tune) {
+                Tracking_SetOdometerTarget(odometer_target);
+            }
         }
         (void)strcpy(response, "[OK,");
         (void)strcat(response, key);
@@ -549,6 +996,8 @@ void Bluetooth_Process(void)
         Bluetooth_Send("[ERR,RANGE]\r\n");
     } else if (result == PARAM_RESULT_BUSY) {
         Bluetooth_Send("[ERR,BUSY]\r\n");
+    } else if (result == PARAM_RESULT_FLASH) {
+        Bluetooth_Send("[ERR,FLASH]\r\n");
     } else {
         Bluetooth_Send("[ERR,UNKNOWN]\r\n");
     }

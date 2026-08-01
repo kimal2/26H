@@ -15,7 +15,7 @@
 #define STEPMOTOR_RUN_ACCELERATION            0U
 #define STEPMOTOR_POSITIVE_DIRECTION          0U
 
-#define STEPMOTOR_CAMERA_CENTER_X             292U
+#define STEPMOTOR_CAMERA_CENTER_X             281U
 #define STEPMOTOR_CAMERA_X_MAX                640U
 #define STEPMOTOR_PIXEL_SWEEP_TEST_ENABLE     0U
 #define STEPMOTOR_PIXEL_SWEEP_PERIOD_MS       20U
@@ -25,7 +25,7 @@
 #define STEPMOTOR_TUBE_ANGLE_HARD_MIN_DEG     (-30.0f)
 #define STEPMOTOR_TUBE_ANGLE_HARD_MAX_DEG     30.0f
 #define STEPMOTOR_MOTOR_DEG_PER_TUBE_DEG      1.0f
-#define STEPMOTOR_COMMAND_DEADBAND_DEG        0.01f
+#define STEPMOTOR_COMMAND_DEADBAND_DEG        0.1f
 
 #define STEPMOTOR_PID_KP                      0.001f
 #define STEPMOTOR_PID_KI                      0.03f
@@ -50,7 +50,7 @@
 #define STEPMOTOR_Q3_NEG_FEEDFORWARD_KFF      0.0f
 #define STEPMOTOR_Q3_NEG_FEEDFORWARD_LPF_ALPHA 0.01f
 #define STEPMOTOR_Q3_NEG_BALL_X_LPF_ALPHA     0.78f
-#define STEPMOTOR_Q3_NEG_ANGLE_BIAS_DEG       (-7.8f)
+#define STEPMOTOR_Q3_NEG_ANGLE_BIAS_DEG       (-7.7f)
 #define STEPMOTOR_Q3_NEG_ANGLE_MIN_DEG        (-20.0f)
 #define STEPMOTOR_Q3_NEG_ANGLE_MAX_DEG        30.0f
 #define STEPMOTOR_Q3_NEG_RUN_SPEED_RPM        150U
@@ -64,6 +64,15 @@
 #define STEPMOTOR_Q4_ANGLE_MIN_DEG            (-20.0f)
 #define STEPMOTOR_Q4_ANGLE_MAX_DEG            30.0f
 #define STEPMOTOR_Q4_RUN_SPEED_RPM            29U
+#define STEPMOTOR_Q4_RETURN_ENABLE            1U
+#define STEPMOTOR_Q4_RETURN_ENTRY_ERROR_PX    45.0f
+#define STEPMOTOR_Q4_RETURN_EXIT_ERROR_PX     12.0f
+#define STEPMOTOR_Q4_RETURN_ACCEL_PX_S2       1800.0f
+#define STEPMOTOR_Q4_RETURN_SPEED_MAX_PX_S    280.0f
+#define STEPMOTOR_Q4_RETURN_ANGLE_KP          0.015f
+#define STEPMOTOR_Q4_RETURN_ANGLE_KV          0.030f
+#define STEPMOTOR_Q4_RETURN_ANGLE_LIMIT_DEG   20.0f
+#define STEPMOTOR_Q4_RETURN_VELOCITY_LPF      0.35f
 
 typedef struct {
     volatile float ball_kp;
@@ -77,6 +86,18 @@ typedef struct {
     volatile float angle_max_deg;
     volatile uint16_t run_speed_rpm;
 } StepMotorTune_t;
+
+typedef struct {
+    volatile uint8_t enabled;
+    volatile float entry_error_px;
+    volatile float exit_error_px;
+    volatile float target_accel_px_s2;
+    volatile float target_speed_max_px_s;
+    volatile float angle_kp;
+    volatile float angle_kv;
+    volatile float angle_limit_deg;
+    volatile float velocity_lpf_alpha;
+} StepMotorReturnTune_t;
 
 typedef enum {
     STEPMOTOR_PROFILE_DEFAULT = 0,
@@ -100,12 +121,18 @@ extern StepMotorTune_t StepMotorTune;
 extern StepMotorTune_t StepMotorQuestion3Tune;
 extern StepMotorTune_t StepMotorQuestion3NegativeTune;
 extern StepMotorTune_t StepMotorQuestion4Tune;
+extern StepMotorReturnTune_t StepMotorQuestion4ReturnTune;
 
 void StepMotor_Init(void);
 void StepMotor_SetBallX(uint16_t ball_x);
+bool StepMotor_SetCameraCenterX(uint16_t center_x);
+uint16_t StepMotor_GetCameraCenterX(void);
 bool StepMotor_SetBallTargetX(uint16_t target_x);
 bool StepMotor_SetControlProfile(StepMotorControlProfile_t profile);
 void StepMotor_SetAngleOverride(bool enabled, float angle_deg);
+void StepMotor_SetAngleOverrideWithSpeed(bool enabled,
+                                         float angle_deg,
+                                         uint16_t speed_rpm);
 void StepMotor_SetFeedforwardAcceleration(float acceleration_g);
 void StepMotor_SetTubeAngle(float tube_angle_deg);
 bool StepMotor_SetEnabled(bool enabled);

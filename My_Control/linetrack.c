@@ -8,7 +8,15 @@
 #define TRACKING_LINE_INTEGRAL_LIMIT  100.0f
 
 Tracker_t Tracker;
-TrackingTune_t TrackingTune = {
+TrackingTune_t TrackingQuestion2Tune = {
+    .line_kp = TRACKING_KP_DEFAULT,
+    .line_ki = TRACKING_KI_DEFAULT,
+    .line_kd = TRACKING_KD_DEFAULT,
+    .base_pwm = TRACKING_BASE_PWM_DEFAULT,
+    .turn_pwm = TRACKING_TURN_PWM_DEFAULT,
+    .max_correction = TRACKING_MAX_CORRECTION_DEFAULT,
+};
+TrackingTune_t TrackingQuestion4Tune = {
     .line_kp = TRACKING_KP_DEFAULT,
     .line_ki = TRACKING_KI_DEFAULT,
     .line_kd = TRACKING_KD_DEFAULT,
@@ -18,13 +26,18 @@ TrackingTune_t TrackingTune = {
 };
 
 static uint8_t tracking_ready;
+static TrackingTune_t *active_tracking_tune = &TrackingQuestion2Tune;
 static LineType last_branch = LINE_TYPE_UNKNOWN;
 static int8_t last_line_error;
 static volatile int8_t current_line_error;
 static volatile uint8_t current_black_count;
 static volatile float current_diff_pwm;
+static volatile float drive_acceleration_pwm_per_second;
 static volatile uint64_t odometer_target_counts =
     TRACKING_ODOMETER_TARGET_DEFAULT;
+static float current_left_pwm;
+static float current_right_pwm;
+static uint32_t drive_command_tick;
 
 static PID_t LineTrackingPID = {
     .Kp = TRACKING_KP_DEFAULT,
@@ -44,6 +57,46 @@ static void Tracking_ResetPID(int8_t error)
     current_diff_pwm = 0.0f;
 }
 
+static float Tracking_SlewPWM(float current, float target, float maximum_delta)
+{
+    if (target > (current + maximum_delta)) {
+        return current + maximum_delta;
+    }
+    if (target < (current - maximum_delta)) {
+        return current - maximum_delta;
+    }
+    return target;
+}
+
+static void Tracking_ResetDriveCommand(void)
+{
+    current_left_pwm = 0.0f;
+    current_right_pwm = 0.0f;
+    drive_command_tick = HAL_GetTick();
+}
+
+static void Tracking_ApplyDrivePWM(float left_pwm, float right_pwm)
+{
+    uint32_t now = HAL_GetTick();
+    uint32_t elapsed_ms = now - drive_command_tick;
+    float acceleration = drive_acceleration_pwm_per_second;
+
+    drive_command_tick = now;
+    if (acceleration > 0.0f) {
+        float maximum_delta = acceleration * (float)elapsed_ms / 1000.0f;
+
+        current_left_pwm = Tracking_SlewPWM(
+            current_left_pwm, left_pwm, maximum_delta);
+        current_right_pwm = Tracking_SlewPWM(
+            current_right_pwm, right_pwm, maximum_delta);
+    } else {
+        current_left_pwm = left_pwm;
+        current_right_pwm = right_pwm;
+    }
+
+    Motor_Set_PWM((int32_t)current_left_pwm, (int32_t)current_right_pwm);
+}
+
 static void Tracking_DriveLine(void)
 {
     int8_t error;
@@ -53,20 +106,20 @@ static void Tracking_DriveLine(void)
     float right_pwm;
 
     error = current_line_error;
-    LineTrackingPID.Kp = TrackingTune.line_kp;
-    LineTrackingPID.Ki = TrackingTune.line_ki;
-    LineTrackingPID.Kd = TrackingTune.line_kd;
-    LineTrackingPID.Out_Max = TrackingTune.max_correction;
-    LineTrackingPID.Out_Min = -TrackingTune.max_correction;
+    LineTrackingPID.Kp = active_tracking_tune->line_kp;
+    LineTrackingPID.Ki = active_tracking_tune->line_ki;
+    LineTrackingPID.Kd = active_tracking_tune->line_kd;
+    LineTrackingPID.Out_Max = active_tracking_tune->max_correction;
+    LineTrackingPID.Out_Min = -active_tracking_tune->max_correction;
     LineTrackingPID.target = 0.0f;
     LineTrackingPID.actual = (float)error;
     PID_Calc(&LineTrackingPID);
 
-    avg_pwm = TrackingTune.base_pwm;
+    avg_pwm = active_tracking_tune->base_pwm;
     diff_pwm = LineTrackingPID.output;
     left_pwm = avg_pwm - diff_pwm;
     right_pwm = avg_pwm + diff_pwm;
-    Motor_Set_PWM((int32_t)left_pwm, (int32_t)right_pwm);
+    Tracking_ApplyDrivePWM(left_pwm, right_pwm);
     current_diff_pwm = diff_pwm;
     last_line_error = error;
 }
@@ -121,6 +174,7 @@ void Tracking_Init(void)
     current_line_error = 0;
     current_black_count = 0U;
     Tracking_ResetPID(0);
+    Tracking_ResetDriveCommand();
     tracking_ready = 1U;
 }
 
@@ -134,9 +188,10 @@ void Tracking_Start(void)
     last_line_error = 0;
     Tracking_ResetPID(current_line_error);
     Motor_OdometerReset();
+    Tracking_ResetDriveCommand();
     Tracker.car_state = CAR_STATE_TRACKING;
-    Motor_Set_PWM((int32_t)TrackingTune.base_pwm,
-                  (int32_t)TrackingTune.base_pwm);
+    Tracking_ApplyDrivePWM(active_tracking_tune->base_pwm,
+                           active_tracking_tune->base_pwm);
 }
 
 void Tracking_Stop(void)
@@ -145,6 +200,7 @@ void Tracking_Stop(void)
     last_branch = LINE_TYPE_UNKNOWN;
     last_line_error = 0;
     Tracking_ResetPID(current_line_error);
+    Tracking_ResetDriveCommand();
     Motor_Stop();
 }
 
@@ -155,6 +211,17 @@ void Tracking_Toggle(void)
     } else {
         Tracking_Stop();
     }
+}
+
+void Tracking_SetTune(TrackingTune_t *tune)
+{
+    active_tracking_tune = (tune != 0) ? tune : &TrackingQuestion2Tune;
+    Tracking_ResetPID(current_line_error);
+}
+
+TrackingTune_t *Tracking_GetTune(void)
+{
+    return active_tracking_tune;
 }
 
 TrackingEvent Tracking_Update(void)
@@ -182,14 +249,15 @@ TrackingEvent Tracking_Update(void)
 
     if (Tracker.car_state == CAR_STATE_TURN_LEFT) {
         current_diff_pwm = 0.0f;
-        Motor_Set_PWM(-(int32_t)TrackingTune.turn_pwm,
-                      (int32_t)TrackingTune.turn_pwm);
+        Tracking_ApplyDrivePWM(-active_tracking_tune->turn_pwm,
+                              active_tracking_tune->turn_pwm);
     } else if (Tracker.car_state == CAR_STATE_TURN_RIGHT) {
         current_diff_pwm = 0.0f;
-        Motor_Set_PWM((int32_t)TrackingTune.turn_pwm,
-                      -(int32_t)TrackingTune.turn_pwm);
+        Tracking_ApplyDrivePWM(active_tracking_tune->turn_pwm,
+                              -active_tracking_tune->turn_pwm);
     } else if (line == LINE_TYPE_LOST) {
         current_diff_pwm = 0.0f;
+        Tracking_ResetDriveCommand();
         Motor_Stop();
     } else {
         Tracking_DriveLine();
@@ -221,6 +289,17 @@ uint8_t Tracking_GetBlackCount(void)
 float Tracking_GetDiffPWM(void)
 {
     return current_diff_pwm;
+}
+
+void Tracking_SetDriveAcceleration(float pwm_per_second)
+{
+    drive_acceleration_pwm_per_second =
+        (pwm_per_second > 0.0f) ? pwm_per_second : 0.0f;
+}
+
+float Tracking_GetDriveAcceleration(void)
+{
+    return drive_acceleration_pwm_per_second;
 }
 
 void Tracking_SetOdometerTarget(uint64_t target_counts)
