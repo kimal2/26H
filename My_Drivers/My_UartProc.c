@@ -1,5 +1,6 @@
 #include "My_UartProc.h"
 
+#include "DisplayTask.h"
 #include "linetrack.h"
 #include "StepMotor_Ctrl.h"
 #include "usart.h"
@@ -30,6 +31,8 @@ static volatile uint8_t bluetooth_frame_ready;
 static uint8_t bluetooth_frame_index;
 static uint8_t bluetooth_frame_receiving;
 static uint32_t line_telemetry_tick;
+static volatile uint16_t camera_debug_ball_x;
+static volatile uint8_t camera_debug_pending;
 
 static char *Bluetooth_AppendUInt64(char *destination, uint64_t value)
 {
@@ -180,16 +183,219 @@ static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
         }
         StepMotorTune.ball_kd = value;
     } else if (strcmp(key, "ball_kff") == 0) {
-        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+        if (Bluetooth_ValueInRange(value, -500.0f, 500.0f) == 0U) {
             return PARAM_RESULT_RANGE;
         }
         StepMotorTune.ball_kff = value;
+    } else if (strcmp(key, "ball_lpf") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 1.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorTune.ball_lpf_alpha = value;
+    } else if (strcmp(key, "imu_lpf") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 1.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorTune.feedforward_lpf_alpha = value;
+    } else if (strcmp(key, "motor_min") == 0) {
+        if ((Bluetooth_ValueInRange(
+                 value, STEPMOTOR_TUBE_ANGLE_HARD_MIN_DEG, 0.0f) == 0U) ||
+            (value >= StepMotorTune.angle_max_deg)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorTune.angle_min_deg = value;
+    } else if (strcmp(key, "motor_max") == 0) {
+        if ((Bluetooth_ValueInRange(
+                 value, 0.0f, STEPMOTOR_TUBE_ANGLE_HARD_MAX_DEG) == 0U) ||
+            (value <= StepMotorTune.angle_min_deg)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorTune.angle_max_deg = value;
     } else if (strcmp(key, "motor_rpm") == 0) {
         if ((Bluetooth_ValueInRange(value, 0.0f, 5000.0f) == 0U) ||
             ((float)(uint16_t)value != value)) {
             return PARAM_RESULT_RANGE;
         }
         StepMotorTune.run_speed_rpm = (uint16_t)value;
+    } else if (strcmp(key, "q3_kp") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3Tune.ball_kp = value;
+    } else if (strcmp(key, "q3_ki") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3Tune.ball_ki = value;
+    } else if (strcmp(key, "q3_kd") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3Tune.ball_kd = value;
+    } else if (strcmp(key, "q3_kff") == 0) {
+        if (Bluetooth_ValueInRange(value, -500.0f, 500.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3Tune.ball_kff = value;
+    } else if (strcmp(key, "q3_ball_lpf") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 1.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3Tune.ball_lpf_alpha = value;
+    } else if (strcmp(key, "q3_imu_lpf") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 1.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3Tune.feedforward_lpf_alpha = value;
+    } else if (strcmp(key, "q3_motor_min") == 0) {
+        if ((Bluetooth_ValueInRange(
+                 value, STEPMOTOR_TUBE_ANGLE_HARD_MIN_DEG, 0.0f) == 0U) ||
+            (value >= StepMotorQuestion3Tune.angle_max_deg)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3Tune.angle_min_deg = value;
+    } else if (strcmp(key, "q3_motor_max") == 0) {
+        if ((Bluetooth_ValueInRange(
+                 value, 0.0f, STEPMOTOR_TUBE_ANGLE_HARD_MAX_DEG) == 0U) ||
+            (value <= StepMotorQuestion3Tune.angle_min_deg)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3Tune.angle_max_deg = value;
+    } else if (strcmp(key, "q3_motor_rpm") == 0) {
+        if ((Bluetooth_ValueInRange(value, 0.0f, 5000.0f) == 0U) ||
+            ((float)(uint16_t)value != value)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3Tune.run_speed_rpm = (uint16_t)value;
+    } else if (strcmp(key, "q3n_kp") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3NegativeTune.ball_kp = value;
+    } else if (strcmp(key, "q3n_ki") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3NegativeTune.ball_ki = value;
+    } else if (strcmp(key, "q3n_kd") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3NegativeTune.ball_kd = value;
+    } else if (strcmp(key, "q3n_kff") == 0) {
+        if (Bluetooth_ValueInRange(value, -500.0f, 500.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3NegativeTune.ball_kff = value;
+    } else if (strcmp(key, "q3n_ball_lpf") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 1.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3NegativeTune.ball_lpf_alpha = value;
+    } else if (strcmp(key, "q3n_imu_lpf") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 1.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3NegativeTune.feedforward_lpf_alpha = value;
+    } else if (strcmp(key, "q3n_bias") == 0) {
+        if (Bluetooth_ValueInRange(
+                value,
+                STEPMOTOR_TUBE_ANGLE_HARD_MIN_DEG,
+                STEPMOTOR_TUBE_ANGLE_HARD_MAX_DEG) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3NegativeTune.angle_bias_deg = value;
+    } else if (strcmp(key, "q3n_motor_min") == 0) {
+        if ((Bluetooth_ValueInRange(
+                 value, STEPMOTOR_TUBE_ANGLE_HARD_MIN_DEG, 0.0f) == 0U) ||
+            (value >= StepMotorQuestion3NegativeTune.angle_max_deg)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3NegativeTune.angle_min_deg = value;
+    } else if (strcmp(key, "q3n_motor_max") == 0) {
+        if ((Bluetooth_ValueInRange(
+                 value, 0.0f, STEPMOTOR_TUBE_ANGLE_HARD_MAX_DEG) == 0U) ||
+            (value <= StepMotorQuestion3NegativeTune.angle_min_deg)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3NegativeTune.angle_max_deg = value;
+    } else if (strcmp(key, "q3n_motor_rpm") == 0) {
+        if ((Bluetooth_ValueInRange(value, 0.0f, 5000.0f) == 0U) ||
+            ((float)(uint16_t)value != value)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion3NegativeTune.run_speed_rpm = (uint16_t)value;
+    } else if (strcmp(key, "q3b_x") == 0) {
+        if ((Bluetooth_ValueInRange(
+                 value, 0.0f, (float)STEPMOTOR_CAMERA_X_MAX) == 0U) ||
+            ((float)(uint16_t)value != value)) {
+            return PARAM_RESULT_RANGE;
+        }
+        DisplayTask_SetQuestion3BrakeTriggerX((uint16_t)value);
+    } else if (strcmp(key, "q3b_angle") == 0) {
+        if (Bluetooth_ValueInRange(
+                value,
+                STEPMOTOR_TUBE_ANGLE_HARD_MIN_DEG,
+                STEPMOTOR_TUBE_ANGLE_HARD_MAX_DEG) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        DisplayTask_SetQuestion3BrakeAngle(value);
+    } else if (strcmp(key, "q3b_ms") == 0) {
+        if ((Bluetooth_ValueInRange(value, 0.0f, 5000.0f) == 0U) ||
+            ((float)(uint32_t)value != value)) {
+            return PARAM_RESULT_RANGE;
+        }
+        DisplayTask_SetQuestion3BrakeDuration((uint32_t)value);
+    } else if (strcmp(key, "q4_kp") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4Tune.ball_kp = value;
+    } else if (strcmp(key, "q4_ki") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4Tune.ball_ki = value;
+    } else if (strcmp(key, "q4_kd") == 0) {
+        if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4Tune.ball_kd = value;
+    } else if (strcmp(key, "q4_kff") == 0) {
+        if (Bluetooth_ValueInRange(value, -500.0f, 500.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4Tune.ball_kff = value;
+    } else if (strcmp(key, "q4_ball_lpf") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 1.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4Tune.ball_lpf_alpha = value;
+    } else if (strcmp(key, "q4_imu_lpf") == 0) {
+        if (Bluetooth_ValueInRange(value, 0.0f, 1.0f) == 0U) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4Tune.feedforward_lpf_alpha = value;
+    } else if (strcmp(key, "q4_motor_min") == 0) {
+        if ((Bluetooth_ValueInRange(
+                 value, STEPMOTOR_TUBE_ANGLE_HARD_MIN_DEG, 0.0f) == 0U) ||
+            (value >= StepMotorQuestion4Tune.angle_max_deg)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4Tune.angle_min_deg = value;
+    } else if (strcmp(key, "q4_motor_max") == 0) {
+        if ((Bluetooth_ValueInRange(
+                 value, 0.0f, STEPMOTOR_TUBE_ANGLE_HARD_MAX_DEG) == 0U) ||
+            (value <= StepMotorQuestion4Tune.angle_min_deg)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4Tune.angle_max_deg = value;
+    } else if (strcmp(key, "q4_motor_rpm") == 0) {
+        if ((Bluetooth_ValueInRange(value, 0.0f, 5000.0f) == 0U) ||
+            ((float)(uint16_t)value != value)) {
+            return PARAM_RESULT_RANGE;
+        }
+        StepMotorQuestion4Tune.run_speed_rpm = (uint16_t)value;
     } else if (strcmp(key, "motor_en") == 0) {
         if ((value != 0.0f) && (value != 1.0f)) {
             return PARAM_RESULT_RANGE;
@@ -268,6 +474,16 @@ void Bluetooth_Process(void)
     size_t key_length;
 
     Bluetooth_SendLineTelemetry();
+    if (camera_debug_pending != 0U) {
+        uint16_t received_ball_x = camera_debug_ball_x;
+
+        camera_debug_pending = 0U;
+        (void)snprintf(response, sizeof(response),
+                           "%d,%d\n",
+                           (int)received_ball_x,
+                           (int)StepMotor_GetBallTargetX());
+        Bluetooth_Send(response);
+    }
 
     if (bluetooth_frame_ready == 0U) {
         return;
@@ -296,14 +512,20 @@ void Bluetooth_Process(void)
     key[key_length] = '\0';
     *closing_bracket = '\0';
 
-    if (strcmp(key, "odo") == 0) {
+    if ((strcmp(key, "odo") == 0) || (strcmp(key, "q4_odo") == 0)) {
         bluetooth_frame_ready = 0U;
         if (Bluetooth_ParseUInt64(comma + 1, &odometer_target) == 0U) {
             Bluetooth_Send("[ERR,RANGE]\r\n");
             return;
         }
-        Tracking_SetOdometerTarget(odometer_target);
-        (void)strcpy(response, "[OK,odo,");
+        if (strcmp(key, "q4_odo") == 0) {
+            DisplayTask_SetQuestion4OdometerTarget(odometer_target);
+        } else {
+            Tracking_SetOdometerTarget(odometer_target);
+        }
+        (void)strcpy(response, "[OK,");
+        (void)strcat(response, key);
+        (void)strcat(response, ",");
         closing_bracket = Bluetooth_AppendUInt64(
             response + strlen(response), odometer_target);
         (void)strcpy(closing_bracket, "]\r\n");
@@ -357,7 +579,11 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size)
         ball_x = (uint16_t)camera_rx_data[0] |
                  ((uint16_t)camera_rx_data[1] << 8);
 #endif
-        StepMotor_SetBallX(ball_x);
+        if (ball_x <= STEPMOTOR_CAMERA_X_MAX) {
+            StepMotor_SetBallX(ball_x);
+            camera_debug_ball_x = StepMotor_GetBallX();
+            camera_debug_pending = 1U;
+        }
     }
 
     (void)Camera_StartReceive();

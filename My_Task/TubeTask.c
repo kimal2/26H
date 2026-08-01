@@ -23,6 +23,6 @@ __weak void TubeTask_Process(void)
     Bluetooth_Process();
     MPU6050_ReadAll(&imu);
     MPU6050_ComputeAttitude(&imu,0.01f);
-    StepMotor_SetFeedforwardAcceleration(imu.acc.x);
+    StepMotor_SetFeedforwardAcceleration(imu.acc.y);
     StepMotor_Task();
 }

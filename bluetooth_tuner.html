@@ -483,6 +483,8 @@
               <span>误差和 <strong id="errorValue">0</strong></span>
               <span>黑点 <strong id="blackValue">0</strong></span>
               <span>里程 <strong id="odometerValue">0</strong></span>
+              <span>坐标 <strong id="ballXValue">--</strong></span>
+              <span>目标 <strong id="ballTargetValue">--</strong></span>
             </div>
           </div>
           <div class="wave-toolbar">
@@ -515,11 +517,47 @@
       { group: "小车输出", label: "原地转弯 PWM", key: "turn_pwm", min: 0, max: 1000, step: 1, value: 200 },
       { group: "小车输出", label: "PID 差速上限", key: "line_max", min: 0, max: 1000, step: 1, value: 350 },
       { group: "小车输出", label: "目标里程脉冲", key: "odo", kind: "uint64", value: "42075" },
-      { group: "滚球 PID", label: "比例", key: "ball_kp", min: -2, max: 2, step: 0.01, value: 0.05 },
-      { group: "滚球 PID", label: "积分", key: "ball_ki", min: -2, max: 2, step: 0.01, value: 0 },
-      { group: "滚球 PID", label: "微分", key: "ball_kd", min: -2, max: 2, step: 0.01, value: 0 },
-      { group: "MPU6050 前馈", label: "X 轴前馈", key: "ball_kff", min: -20, max: 20, step: 0.1, value: 0 },
-      { group: "步进电机", label: "运行速度 RPM", key: "motor_rpm", min: 0, max: 5000, step: 1, value: 120 },
+      { group: "滚球 PID", label: "比例", key: "ball_kp", min: -4, max: 4, step: 0.001, value: 0.001 },
+      { group: "滚球 PID", label: "积分", key: "ball_ki", min: -4, max: 4, step: 0.01, value: 0.03 },
+      { group: "滚球 PID", label: "微分", key: "ball_kd", min: -10, max: 10, step: 0.01, value: 0.05 },
+      { group: "滚球 PID", label: "坐标低通系数", key: "ball_lpf", min: 0.01, max: 1, step: 0.01, value: 0.96 },
+      { group: "MPU6050 前馈", label: "Y 轴前馈", key: "ball_kff", min: -500, max: 500, step: 1, value: -463 },
+      { group: "MPU6050 前馈", label: "低通滤波系数", key: "imu_lpf", min: 0.01, max: 1, step: 0.01, value: 0.01 },
+      { group: "第三问去 +5cm", label: "比例", key: "q3_kp", min: -4, max: 4, step: 0.001, value: 0.07 },
+      { group: "第三问去 +5cm", label: "积分", key: "q3_ki", min: -4, max: 4, step: 0.01, value: 0 },
+      { group: "第三问去 +5cm", label: "微分", key: "q3_kd", min: -100, max: 100, step: 0.01, value: 0 },
+      { group: "第三问去 +5cm", label: "Y 轴前馈", key: "q3_kff", min: -500, max: 500, step: 1, value: 0 },
+      { group: "第三问去 +5cm", label: "坐标低通系数", key: "q3_ball_lpf", min: 0.01, max: 1, step: 0.01, value: 0.20 },
+      { group: "第三问去 +5cm", label: "IMU 低通系数", key: "q3_imu_lpf", min: 0.01, max: 1, step: 0.01, value: 0.01 },
+      { group: "第三问去 +5cm", label: "运行速度 RPM", key: "q3_motor_rpm", min: 0, max: 5000, step: 1, value: 150 },
+      { group: "第三问去 +5cm", label: "最小角度", key: "q3_motor_min", min: -30, max: 0, step: 0.5, value: -20 },
+      { group: "第三问去 +5cm", label: "最大角度", key: "q3_motor_max", min: 0, max: 30, step: 0.5, value: 30 },
+      { group: "第三问去 -5cm", label: "比例", key: "q3n_kp", min: -4, max: 4, step: 0.001, value: 0.004 },
+      { group: "第三问去 -5cm", label: "积分", key: "q3n_ki", min: -4, max: 4, step: 0.01, value: 0.03 },
+      { group: "第三问去 -5cm", label: "微分", key: "q3n_kd", min: -100, max: 100, step: 0.01, value: 0.02 },
+      { group: "第三问去 -5cm", label: "Y 轴前馈", key: "q3n_kff", min: -500, max: 500, step: 1, value: 0 },
+      { group: "第三问去 -5cm", label: "坐标低通系数", key: "q3n_ball_lpf", min: 0.01, max: 1, step: 0.01, value: 0.78 },
+      { group: "第三问去 -5cm", label: "IMU 低通系数", key: "q3n_imu_lpf", min: 0.01, max: 1, step: 0.01, value: 0.01 },
+      { group: "第三问去 -5cm", label: "平衡角偏置", key: "q3n_bias", min: -30, max: 30, step: 0.1, value: -7.8 },
+      { group: "第三问去 -5cm", label: "运行速度 RPM", key: "q3n_motor_rpm", min: 0, max: 5000, step: 1, value: 150 },
+      { group: "第三问去 -5cm", label: "最小角度", key: "q3n_motor_min", min: -30, max: 0, step: 0.5, value: -20 },
+      { group: "第三问去 -5cm", label: "最大角度", key: "q3n_motor_max", min: 0, max: 30, step: 0.5, value: 30 },
+      { group: "第三问刹车", label: "触发坐标 X", key: "q3b_x", min: 0, max: 640, step: 1, value: 355 },
+      { group: "第三问刹车", label: "刹车角度", key: "q3b_angle", min: -30, max: 30, step: 0.5, value: 30 },
+      { group: "第三问刹车", label: "保持时间 ms", key: "q3b_ms", min: 0, max: 5000, step: 10, value: 390 },
+      { group: "第四问滚球", label: "比例", key: "q4_kp", min: -4, max: 4, step: 0.001, value: 0.001 },
+      { group: "第四问滚球", label: "积分", key: "q4_ki", min: -4, max: 4, step: 0.01, value: 0.07 },
+      { group: "第四问滚球", label: "微分", key: "q4_kd", min: -100, max: 100, step: 0.01, value: 0.8 },
+      { group: "第四问滚球", label: "Y 轴前馈", key: "q4_kff", min: -500, max: 500, step: 1, value: 0 },
+      { group: "第四问滚球", label: "坐标低通系数", key: "q4_ball_lpf", min: 0.01, max: 1, step: 0.01, value: 0.20 },
+      { group: "第四问滚球", label: "IMU 低通系数", key: "q4_imu_lpf", min: 0.01, max: 1, step: 0.01, value: 0.01 },
+      { group: "第四问滚球", label: "运行速度 RPM", key: "q4_motor_rpm", min: 0, max: 5000, step: 1, value: 29 },
+      { group: "第四问滚球", label: "最小角度", key: "q4_motor_min", min: -30, max: 0, step: 0.5, value: -20 },
+      { group: "第四问滚球", label: "最大角度", key: "q4_motor_max", min: 0, max: 30, step: 0.5, value: 30 },
+      { group: "第四问滚球", label: "AB 目标里程脉冲", key: "q4_odo", kind: "uint64", value: "0", sendAll: false },
+      { group: "步进电机", label: "运行速度 RPM", key: "motor_rpm", min: 0, max: 5000, step: 1, value: 100 },
+      { group: "步进电机", label: "最小角度", key: "motor_min", min: -30, max: 0, step: 0.5, value: -20 },
+      { group: "步进电机", label: "最大角度", key: "motor_max", min: 0, max: 30, step: 0.5, value: 30 },
       { group: "步进电机", label: "电机使能", key: "motor_en", kind: "toggle", value: 1, sendAll: false },
       { group: "步进电机", label: "当前位置设为零点", key: "motor_zero", kind: "command", value: 1, sendAll: false }
     ];
@@ -531,6 +569,7 @@
     const parameterDecimals = 3;
     const uint64Maximum = 18446744073709551615n;
     const telemetrySamples = [];
+    const coordinateSamples = [];
     const recentWaveMilliseconds = 10000;
     let telemetryStartTime = null;
     let waveformMode = "all";
@@ -597,12 +636,12 @@
       return `${(milliseconds / 1000).toFixed(milliseconds < 10000 ? 1 : 0)}s`;
     }
 
-    function firstSampleAtOrAfter(time) {
+    function firstSampleAtOrAfter(samples, time) {
       let low = 0;
-      let high = telemetrySamples.length;
+      let high = samples.length;
       while (low < high) {
         const middle = Math.floor((low + high) / 2);
-        if (telemetrySamples[middle].time < time) low = middle + 1;
+        if (samples[middle].time < time) low = middle + 1;
         else high = middle;
       }
       return low;
@@ -614,8 +653,18 @@
       if (width <= 0 || height <= 0) return;
 
       const lanes = [
-        { key: "error", label: "ERR", min: -72, max: 72, color: "#5ec98b" },
-        { key: "black", label: "BLACK", min: 0, max: 8, color: "#e4c45c" }
+        { samples: telemetrySamples, key: "error", label: "ERR", min: -72, max: 72, color: "#5ec98b" },
+        { samples: telemetrySamples, key: "black", label: "BLACK", min: 0, max: 8, color: "#e4c45c" },
+        {
+          samples: coordinateSamples,
+          key: "current",
+          targetKey: "target",
+          label: "BALL",
+          min: 0,
+          max: 640,
+          color: "#65a9e8",
+          targetColor: "#ef8d68"
+        }
       ];
       const left = 68;
       const right = 12;
@@ -624,9 +673,11 @@
       const plotWidth = Math.max(1, width - left - right);
       const plotHeight = Math.max(1, height - top - bottom);
       const laneHeight = plotHeight / lanes.length;
-      const latestTime = telemetrySamples.length > 0
-        ? telemetrySamples[telemetrySamples.length - 1].time
-        : 0;
+      const latestTelemetryTime = telemetrySamples.length > 0
+        ? telemetrySamples[telemetrySamples.length - 1].time : 0;
+      const latestCoordinateTime = coordinateSamples.length > 0
+        ? coordinateSamples[coordinateSamples.length - 1].time : 0;
+      const latestTime = Math.max(latestTelemetryTime, latestCoordinateTime);
       let viewStart = 0;
       let viewEnd = Math.max(1000, latestTime);
 
@@ -634,10 +685,6 @@
         viewEnd = Math.max(recentWaveMilliseconds, latestTime);
         viewStart = viewEnd - recentWaveMilliseconds;
       }
-      const firstIndex = firstSampleAtOrAfter(viewStart);
-      const visibleCount = telemetrySamples.length - firstIndex;
-      const pointStep = Math.max(1, Math.floor(visibleCount / Math.max(1, plotWidth * 2)));
-
       waveContext.clearRect(0, 0, width, height);
       waveContext.fillStyle = "#18201c";
       waveContext.fillRect(0, 0, width, height);
@@ -663,6 +710,47 @@
       lanes.forEach((lane, laneIndex) => {
         const laneTop = top + laneIndex * laneHeight;
         const laneBottom = laneTop + laneHeight;
+        const firstIndex = firstSampleAtOrAfter(lane.samples, viewStart);
+        const visibleCount = lane.samples.length - firstIndex;
+        const pointStep = Math.max(
+          1,
+          Math.floor(visibleCount / Math.max(1, plotWidth * 2))
+        );
+
+        function drawSeries(key, color, dashed = false) {
+          waveContext.strokeStyle = color;
+          waveContext.lineWidth = 1.5;
+          waveContext.setLineDash(dashed ? [5, 4] : []);
+          waveContext.beginPath();
+
+          let plotted = 0;
+          for (let sampleIndex = firstIndex;
+               sampleIndex < lane.samples.length;
+               sampleIndex += pointStep) {
+            const sample = lane.samples[sampleIndex];
+            const x = left + (sample.time - viewStart) * plotWidth /
+                      Math.max(1, viewEnd - viewStart);
+            const value = Math.max(lane.min, Math.min(lane.max, sample[key]));
+            const y = laneBottom - (value - lane.min) * laneHeight /
+                      (lane.max - lane.min);
+            if (plotted === 0) waveContext.moveTo(x, y);
+            else waveContext.lineTo(x, y);
+            plotted++;
+          }
+
+          const lastSample = lane.samples[lane.samples.length - 1];
+          if (lastSample && lastSample.time >= viewStart) {
+            const x = left + (lastSample.time - viewStart) * plotWidth /
+                      Math.max(1, viewEnd - viewStart);
+            const value = Math.max(lane.min, Math.min(lane.max, lastSample[key]));
+            const y = laneBottom - (value - lane.min) * laneHeight /
+                      (lane.max - lane.min);
+            if (plotted === 0) waveContext.moveTo(x, y);
+            else waveContext.lineTo(x, y);
+          }
+          waveContext.stroke();
+          waveContext.setLineDash([]);
+        }
 
         for (let division = 0; division <= 4; division++) {
           const y = laneTop + laneHeight * division / 4;
@@ -683,50 +771,27 @@
         waveContext.fillStyle = lane.color;
         waveContext.textAlign = "left";
         waveContext.fillText(lane.label, 5, laneTop + 12);
+        if (lane.targetKey) {
+          waveContext.fillStyle = lane.targetColor;
+          waveContext.fillText("TGT", 5, laneTop + 24);
+        }
 
         if (visibleCount === 0) return;
         waveContext.save();
         waveContext.beginPath();
         waveContext.rect(left, laneTop, plotWidth, laneHeight);
         waveContext.clip();
-        waveContext.strokeStyle = lane.color;
-        waveContext.lineWidth = 1.5;
-        waveContext.beginPath();
-
-        let plotted = 0;
-        for (let sampleIndex = firstIndex;
-             sampleIndex < telemetrySamples.length;
-             sampleIndex += pointStep) {
-          const sample = telemetrySamples[sampleIndex];
-          const x = left + (sample.time - viewStart) * plotWidth /
-                    Math.max(1, viewEnd - viewStart);
-          const value = Math.max(lane.min, Math.min(lane.max, sample[lane.key]));
-          const y = laneBottom - (value - lane.min) * laneHeight /
-                    (lane.max - lane.min);
-          if (plotted === 0) waveContext.moveTo(x, y);
-          else waveContext.lineTo(x, y);
-          plotted++;
-        }
-
-        const lastSample = telemetrySamples[telemetrySamples.length - 1];
-        if (lastSample.time >= viewStart) {
-          const x = left + (lastSample.time - viewStart) * plotWidth /
-                    Math.max(1, viewEnd - viewStart);
-          const value = Math.max(lane.min, Math.min(lane.max, lastSample[lane.key]));
-          const y = laneBottom - (value - lane.min) * laneHeight /
-                    (lane.max - lane.min);
-          waveContext.lineTo(x, y);
-        }
-        waveContext.stroke();
+        drawSeries(lane.key, lane.color);
+        if (lane.targetKey) drawSeries(lane.targetKey, lane.targetColor, true);
         waveContext.restore();
       });
 
       waveContext.strokeStyle = "#65746c";
       waveContext.strokeRect(left, top, plotWidth, plotHeight);
-      if (telemetrySamples.length === 0) {
+      if (telemetrySamples.length === 0 && coordinateSamples.length === 0) {
         waveContext.fillStyle = "#95a49c";
         waveContext.textAlign = "center";
-        waveContext.fillText("等待循迹数据", left + plotWidth / 2, top + plotHeight / 2);
+        waveContext.fillText("等待实时数据", left + plotWidth / 2, top + plotHeight / 2);
       }
       waveContext.textAlign = "left";
     }
@@ -747,6 +812,23 @@
       const odometerMatch = message.match(/^o:(\d+)$/);
       if (odometerMatch) {
         document.getElementById("odometerValue").textContent = odometerMatch[1];
+        return true;
+      }
+
+      const coordinateMatch = message.match(/^(\d+),(\d+)$/);
+      if (coordinateMatch) {
+        const sample = {
+          current: Number(coordinateMatch[1]),
+          target: Number(coordinateMatch[2]),
+          time: 0
+        };
+        const now = performance.now();
+        if (telemetryStartTime === null) telemetryStartTime = now;
+        sample.time = now - telemetryStartTime;
+        coordinateSamples.push(sample);
+        document.getElementById("ballXValue").textContent = String(sample.current);
+        document.getElementById("ballTargetValue").textContent = String(sample.target);
+        drawWaveform();
         return true;
       }
 
@@ -780,17 +862,33 @@
 
     function clearWaveform() {
       telemetrySamples.length = 0;
+      coordinateSamples.length = 0;
       telemetryStartTime = null;
       drawWaveform();
     }
 
     function loadParameterValues() {
-      const defaultsVersion = "firmware-20260801-6";
+      const defaultsVersion = "firmware-20260801-8";
       if (localStorage.getItem("26h.defaultsVersion") !== defaultsVersion) {
         for (const parameter of parameters) {
           localStorage.removeItem(`26h.${parameter.key}`);
         }
         localStorage.setItem("26h.defaultsVersion", defaultsVersion);
+      }
+
+      const stableDefaultsVersion = "robot-stable-20260801-1";
+      if (localStorage.getItem("26h.stableDefaultsVersion") !== stableDefaultsVersion) {
+        const stableKeys = [
+          "q3b_x", "q3b_angle", "q3b_ms",
+          "q3n_kp", "q3n_ki", "q3n_kd", "q3n_kff", "q3n_ball_lpf",
+          "q3n_imu_lpf", "q3n_motor_rpm", "q3n_motor_min", "q3n_motor_max",
+          "q3_kp", "q3_ki", "q3_kd", "q3_kff", "q3_ball_lpf",
+          "q3_imu_lpf", "q3_motor_rpm", "q3_motor_min", "q3_motor_max",
+          "ball_kp", "ball_ki", "ball_kd", "ball_lpf",
+          "motor_rpm", "motor_min", "motor_max"
+        ];
+        for (const key of stableKeys) localStorage.removeItem(`26h.${key}`);
+        localStorage.setItem("26h.stableDefaultsVersion", stableDefaultsVersion);
       }
 
       if (localStorage.getItem("26h.pwmRange") !== "1000") {

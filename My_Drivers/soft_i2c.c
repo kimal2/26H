@@ -4,20 +4,20 @@
 
 static void iic_delay(soft_iic_obj_t *soft_iic_obj)
 {
-    volatile uint32_t i;
-    uint32_t start;
-    uint32_t cycles;
+    // volatile uint32_t i;
+    // uint32_t start;
+    // uint32_t cycles;
 
-    if (soft_iic_obj->half_period_us == 0U) {
-        for (i = 0U; i < SOFT_I2C_FAST_DELAY_COUNT; i++) {
-            __NOP();
-        }
-        return;
-    }
+    // if (soft_iic_obj->half_period_us == 0U) {
+    //     for (i = 0U; i < SOFT_I2C_FAST_DELAY_COUNT; i++) {
+    //         __NOP();
+    //     }
+    //     return;
+    // }
 
-    start = DWT->CYCCNT;
-    cycles = (SystemCoreClock / 1000000U) * soft_iic_obj->half_period_us;
-    while ((DWT->CYCCNT - start) < cycles) { }
+    // start = DWT->CYCCNT;
+    // cycles = (SystemCoreClock / 1000000U) * soft_iic_obj->half_period_us;
+    // while ((DWT->CYCCNT - start) < cycles) { }
 }
 
 static void IIC_SDA_SetMode(soft_iic_obj_t *soft_iic_obj, uint32_t mode)

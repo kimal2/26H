@@ -94,8 +94,8 @@ void MX_FREERTOS_Init(void) {
   HAL_Delay(500);
   OLED_Init();
 
-  // MPU6050_Init(&imu);
-  // MPU6050_CalibrateGyro(&imu,500);
+  MPU6050_Init(&imu);
+  MPU6050_CalibrateGyro(&imu,500);
 
 
   /* USER CODE END Init */
