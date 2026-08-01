@@ -434,9 +434,9 @@ void StepMotor_Init(void)
     WaterTubeMotor.target_speed = 0.0f;
 
     PID_Clear(&BallPositionPID);
-    latest_ball_x = STEPMOTOR_CAMERA_CENTER_X;
-    target_ball_x = STEPMOTOR_CAMERA_CENTER_X;
-    filtered_ball_x = (float)STEPMOTOR_CAMERA_CENTER_X;
+    latest_ball_x = center_x;
+    target_ball_x = center_x;
+    filtered_ball_x = (float)center_x;
     ball_filter_initialized = false;
     ball_sample_sequence = 0U;
     processed_sample_sequence = 0U;
@@ -454,7 +454,7 @@ void StepMotor_Init(void)
     angle_override_speed_enabled = false;
     angle_override_speed_rpm = 0U;
     ball_velocity_initialized = false;
-    ball_velocity_last_x = STEPMOTOR_CAMERA_CENTER_X;
+    ball_velocity_last_x = center_x;
     ball_velocity_last_tick = HAL_GetTick();
     ball_velocity_px_s = 0.0f;
     question4_return_active = false;
@@ -470,6 +470,27 @@ void StepMotor_SetBallX(uint16_t ball_x)
 #else
     StepMotor_FilterAndStoreBallX(ball_x);
 #endif
+}
+
+bool StepMotor_SetCameraCenterX(uint16_t center_x)
+{
+    uint16_t old_center;
+
+    if (center_x > STEPMOTOR_CAMERA_X_MAX) {
+        return false;
+    }
+
+    old_center = camera_center_x;
+    camera_center_x = center_x;
+    if (target_ball_x == old_center) {
+        target_ball_x = center_x;
+    }
+    return true;
+}
+
+uint16_t StepMotor_GetCameraCenterX(void)
+{
+    return camera_center_x;
 }
 
 bool StepMotor_SetBallTargetX(uint16_t target_x)

@@ -40,6 +40,7 @@ typedef enum {
     MENU_ITEM_R2_LINE_TRACK = 0,
     MENU_ITEM_R3_BALL_SWEEP,
     MENU_ITEM_R4_A_TO_B,
+    MENU_ITEM_R5_A_TO_B,
     MENU_ITEM_COUNT
 } MenuItem_t;
 
@@ -75,6 +76,8 @@ static uint32_t task_start_tick;
 static uint32_t task_finish_tick;
 static uint32_t last_refresh_tick;
 static uint32_t question3_stable_start_tick;
+static volatile uint16_t question3_positive_x = QUESTION3_POSITIVE_X;
+static volatile uint16_t question3_negative_x = QUESTION3_NEGATIVE_X;
 static volatile uint16_t question3_brake_trigger_x =
     QUESTION3_BRAKE_TRIGGER_X;
 static volatile float question3_brake_angle_deg =
@@ -103,6 +106,20 @@ static uint8_t Menu_KeyRead(const MenuKey_t *key)
 static uint16_t Menu_AbsDiffU16(uint16_t left, uint16_t right)
 {
     return (left >= right) ? (left - right) : (right - left);
+}
+
+static uint8_t Menu_IsQuestionABItem(MenuItem_t item)
+{
+    return ((item == MENU_ITEM_R4_A_TO_B) ||
+            (item == MENU_ITEM_R5_A_TO_B)) ? 1U : 0U;
+}
+
+static uint64_t Menu_GetQuestionABOdometerTarget(MenuItem_t item)
+{
+    if (item == MENU_ITEM_R5_A_TO_B) {
+        return DisplayTask_GetQuestion2OdometerTarget();
+    }
+    return DisplayTask_GetQuestion4OdometerTarget();
 }
 
 static void Menu_ForwardGrayKey(void)
@@ -159,6 +176,10 @@ static void Menu_RenderSelect(void)
     OLED_ShowString(0U, 3U,
                     (uint8_t *)((selected_item == MENU_ITEM_R4_A_TO_B) ?
                                 "> R4 A TO B" : "  R4 A TO B"),
+                    8U);
+    OLED_ShowString(0U, 4U,
+                    (uint8_t *)((selected_item == MENU_ITEM_R5_A_TO_B) ?
+                                "> R5 A TO B" : "  R5 A TO B"),
                     8U);
     OLED_ShowString(
         0U, 5U,
@@ -323,12 +344,13 @@ static void Menu_RenderQuestion3Running(void)
 static void Menu_RenderQuestion4Status(uint32_t elapsed_ms)
 {
     uint16_t ball_x = StepMotor_GetBallX();
+    uint16_t center_x = StepMotor_GetCameraCenterX();
     uint64_t odometer = Tracking_GetOdometerCounts();
-    uint64_t target = DisplayTask_GetQuestion4OdometerTarget();
+    uint64_t target = Menu_GetQuestionABOdometerTarget(running_item);
 
     OLED_Printf(0U, 2U, 8U, "X:%3u T:%3u   ",
                 (unsigned int)ball_x,
-                (unsigned int)STEPMOTOR_CAMERA_CENTER_X);
+                (unsigned int)center_x);
     OLED_Printf(0U, 3U, 8U, "O:%lu/%lu   ",
                 (unsigned long)odometer, (unsigned long)target);
     OLED_Printf(0U, 4U, 8U, "TIME:%2lu.%1lu S ",
@@ -342,7 +364,10 @@ static void Menu_RenderQuestion4Status(uint32_t elapsed_ms)
 static void Menu_RenderQuestion4Running(void)
 {
     OLED_Clear();
-    OLED_ShowString(0U, 0U, (uint8_t *)"R4 A TO B", 8U);
+    OLED_ShowString(0U, 0U,
+                    (uint8_t *)((running_item == MENU_ITEM_R5_A_TO_B) ?
+                                "R5 A TO B" : "R4 A TO B"),
+                    8U);
     OLED_ShowString(0U, 1U, (uint8_t *)"STATUS: RUNNING", 8U);
     Menu_RenderQuestion4Status(0U);
     OLED_ShowString(0U, 6U, (uint8_t *)"KEY4: ABORT", 8U);
@@ -356,7 +381,10 @@ static const char *Menu_GetRunningTitle(void)
     if (running_item == MENU_ITEM_R3_BALL_SWEEP) {
         return "R3 BALL +/-5CM";
     }
-    return "R4 A TO B";
+    if (running_item == MENU_ITEM_R4_A_TO_B) {
+        return "R4 A TO B";
+    }
+    return "R5 A TO B";
 }
 
 static void Menu_RenderResult(const char *status, uint32_t elapsed_ms)
@@ -364,7 +392,7 @@ static void Menu_RenderResult(const char *status, uint32_t elapsed_ms)
     OLED_Clear();
     OLED_ShowString(0U, 0U, (uint8_t *)Menu_GetRunningTitle(), 8U);
     OLED_Printf(0U, 1U, 8U, "STATUS: %s", status);
-    if (running_item == MENU_ITEM_R4_A_TO_B) {
+    if (Menu_IsQuestionABItem(running_item) != 0U) {
         OLED_Printf(0U, 2U, 8U, "MAX ERR:%3uPX  ",
                     (unsigned int)question4_max_ball_error_px);
     }
@@ -402,6 +430,8 @@ static void Menu_StartTracking(void)
 static void Menu_StartQuestion3(void)
 {
     uint16_t ball_x;
+    uint16_t center_x;
+    uint16_t positive_x;
 
     if (StepMotor_GetState() != STEPMOTOR_STATE_READY) {
         OLED_ShowString(0U, 4U, (uint8_t *)"MOTOR NOT READY ", 8U);
@@ -409,13 +439,14 @@ static void Menu_StartQuestion3(void)
     }
 
     ball_x = StepMotor_GetBallX();
-    if (Menu_AbsDiffU16(ball_x, STEPMOTOR_CAMERA_CENTER_X) >
+    center_x = StepMotor_GetCameraCenterX();
+    if (Menu_AbsDiffU16(ball_x, center_x) >
         QUESTION3_CENTER_TOLERANCE_PX) {
-        (void)StepMotor_SetBallTargetX(STEPMOTOR_CAMERA_CENTER_X);
+        (void)StepMotor_SetBallTargetX(center_x);
         OLED_ShowString(0U, 4U, (uint8_t *)"MOVE BALL TO O  ", 8U);
         OLED_Printf(0U, 3U, 8U, "X:%3u O:%3u   ",
                     (unsigned int)ball_x,
-                    (unsigned int)STEPMOTOR_CAMERA_CENTER_X);
+                    (unsigned int)center_x);
         return;
     }
 
@@ -433,13 +464,15 @@ static void Menu_StartQuestion3(void)
     task_start_tick = HAL_GetTick();
     last_refresh_tick = task_start_tick;
     menu_state = MENU_STATE_RUNNING;
-    (void)StepMotor_SetBallTargetX(QUESTION3_POSITIVE_X);
+    positive_x = DisplayTask_GetQuestion3PositiveX();
+    (void)StepMotor_SetBallTargetX(positive_x);
     Menu_RenderQuestion3Running();
 }
 
-static void Menu_StartQuestion4(void)
+static void Menu_StartQuestion4(MenuItem_t item)
 {
     uint16_t ball_x;
+    uint16_t center_x;
     uint64_t odometer_target;
 
     if ((Tracking_IsReady() == 0U) ||
@@ -448,33 +481,38 @@ static void Menu_StartQuestion4(void)
         return;
     }
 
-    odometer_target = DisplayTask_GetQuestion4OdometerTarget();
+    odometer_target = Menu_GetQuestionABOdometerTarget(item);
     if (odometer_target == 0U) {
-        OLED_ShowString(0U, 4U, (uint8_t *)"SET Q4 ODO FIRST", 8U);
+        OLED_ShowString(0U, 4U,
+                        (uint8_t *)((item == MENU_ITEM_R5_A_TO_B) ?
+                                    "SET Q2 ODO FIRST" :
+                                    "SET Q4 ODO FIRST"),
+                        8U);
         return;
     }
 
     ball_x = StepMotor_GetBallX();
-    if (Menu_AbsDiffU16(ball_x, STEPMOTOR_CAMERA_CENTER_X) >
+    center_x = StepMotor_GetCameraCenterX();
+    if (Menu_AbsDiffU16(ball_x, center_x) >
         QUESTION4_CENTER_TOLERANCE_PX) {
         (void)StepMotor_SetControlProfile(STEPMOTOR_PROFILE_DEFAULT);
-        (void)StepMotor_SetBallTargetX(STEPMOTOR_CAMERA_CENTER_X);
+        (void)StepMotor_SetBallTargetX(center_x);
         OLED_ShowString(0U, 4U, (uint8_t *)"MOVE BALL TO O  ", 8U);
         OLED_Printf(0U, 3U, 8U, "X:%3u O:%3u   ",
                     (unsigned int)ball_x,
-                    (unsigned int)STEPMOTOR_CAMERA_CENTER_X);
+                    (unsigned int)center_x);
         return;
     }
 
-    running_item = MENU_ITEM_R4_A_TO_B;
+    running_item = item;
     tracking_finished = 0U;
     question4_max_ball_error_px =
-        Menu_AbsDiffU16(ball_x, STEPMOTOR_CAMERA_CENTER_X);
+        Menu_AbsDiffU16(ball_x, center_x);
     Tracking_SetTune(&TrackingQuestion4Tune);
     Tracking_SetOdometerTarget(odometer_target);
     Tracking_SetDriveAcceleration(question4_drive_acceleration);
     (void)StepMotor_SetControlProfile(STEPMOTOR_PROFILE_QUESTION4);
-    (void)StepMotor_SetBallTargetX(STEPMOTOR_CAMERA_CENTER_X);
+    (void)StepMotor_SetBallTargetX(center_x);
     task_start_tick = HAL_GetTick();
     last_refresh_tick = task_start_tick;
     menu_state = MENU_STATE_RUNNING;
@@ -488,8 +526,8 @@ static void Menu_StartSelected(void)
         Menu_StartTracking();
     } else if (selected_item == MENU_ITEM_R3_BALL_SWEEP) {
         Menu_StartQuestion3();
-    } else {
-        Menu_StartQuestion4();
+    } else if (Menu_IsQuestionABItem(selected_item) != 0U) {
+        Menu_StartQuestion4(selected_item);
     }
 }
 
@@ -526,22 +564,24 @@ static void Menu_UpdateQuestion3(void)
     uint32_t now = HAL_GetTick();
     uint32_t elapsed = now - task_start_tick;
     uint16_t ball_x = StepMotor_GetBallX();
+    uint16_t positive_x = DisplayTask_GetQuestion3PositiveX();
+    uint16_t negative_x = DisplayTask_GetQuestion3NegativeX();
 
     if ((QUESTION3_TIMEOUT_MS != 0U) &&
         (elapsed >= QUESTION3_TIMEOUT_MS)) {
-        (void)StepMotor_SetBallTargetX(QUESTION3_NEGATIVE_X);
+        (void)StepMotor_SetBallTargetX(negative_x);
         Menu_CompleteQuestion3("TIMEOUT", now);
         return;
     }
 
     if (question3_stage == QUESTION3_STAGE_TO_POSITIVE) {
-        if (Menu_AbsDiffU16(ball_x, QUESTION3_POSITIVE_X) <=
+        if (Menu_AbsDiffU16(ball_x, positive_x) <=
             QUESTION3_REACH_TOLERANCE_PX) {
 #if QUESTION3_CONTROL_STRATEGY == QUESTION3_STRATEGY_DUAL_PID
             (void)StepMotor_SetControlProfile(
                 STEPMOTOR_PROFILE_QUESTION3_NEGATIVE);
 #endif
-            (void)StepMotor_SetBallTargetX(QUESTION3_NEGATIVE_X);
+            (void)StepMotor_SetBallTargetX(negative_x);
             question3_stage = QUESTION3_STAGE_TO_NEGATIVE;
             question3_stable_active = 0U;
         }
@@ -566,7 +606,7 @@ static void Menu_UpdateQuestion3(void)
         }
 #endif
     } else {
-        if (Menu_AbsDiffU16(ball_x, QUESTION3_NEGATIVE_X) <=
+        if (Menu_AbsDiffU16(ball_x, negative_x) <=
             QUESTION3_STABLE_TOLERANCE_PX) {
             if (question3_stable_active == 0U) {
                 question3_stable_active = 1U;
@@ -596,7 +636,7 @@ static void Menu_CompleteQuestion4(const char *status, uint32_t now)
     Tracking_SetDriveAcceleration(0.0f);
     StepMotor_SetAngleOverride(false, 0.0f);
     (void)StepMotor_SetControlProfile(STEPMOTOR_PROFILE_DEFAULT);
-    (void)StepMotor_SetBallTargetX(STEPMOTOR_CAMERA_CENTER_X);
+    (void)StepMotor_SetBallTargetX(StepMotor_GetCameraCenterX());
     task_finish_tick = now;
     menu_state = MENU_STATE_COMPLETE;
     Menu_RenderResult(status, task_finish_tick - task_start_tick);
@@ -607,7 +647,7 @@ static void Menu_UpdateQuestion4(void)
     uint32_t now = HAL_GetTick();
     uint32_t elapsed = now - task_start_tick;
     uint16_t ball_error = Menu_AbsDiffU16(
-        StepMotor_GetBallX(), STEPMOTOR_CAMERA_CENTER_X);
+        StepMotor_GetBallX(), StepMotor_GetCameraCenterX());
 
     if (ball_error > question4_max_ball_error_px) {
         question4_max_ball_error_px = ball_error;
@@ -650,14 +690,14 @@ static void Menu_AbortRunning(void)
     } else if (running_item == MENU_ITEM_R3_BALL_SWEEP) {
         StepMotor_SetAngleOverride(false, 0.0f);
         (void)StepMotor_SetControlProfile(STEPMOTOR_PROFILE_DEFAULT);
-        (void)StepMotor_SetBallTargetX(STEPMOTOR_CAMERA_CENTER_X);
+        (void)StepMotor_SetBallTargetX(StepMotor_GetCameraCenterX());
     } else {
         Tracking_Stop();
         Tracking_SetTune(&TrackingQuestion2Tune);
         Tracking_SetOdometerTarget(DisplayTask_GetQuestion2OdometerTarget());
         Tracking_SetDriveAcceleration(0.0f);
         (void)StepMotor_SetControlProfile(STEPMOTOR_PROFILE_DEFAULT);
-        (void)StepMotor_SetBallTargetX(STEPMOTOR_CAMERA_CENTER_X);
+        (void)StepMotor_SetBallTargetX(StepMotor_GetCameraCenterX());
     }
     menu_state = MENU_STATE_SELECT;
     Menu_RenderSelect();
@@ -666,10 +706,10 @@ static void Menu_AbortRunning(void)
 static void Menu_ReturnFromResult(void)
 {
     if ((running_item == MENU_ITEM_R3_BALL_SWEEP) ||
-        (running_item == MENU_ITEM_R4_A_TO_B)) {
+        (Menu_IsQuestionABItem(running_item) != 0U)) {
         StepMotor_SetAngleOverride(false, 0.0f);
         (void)StepMotor_SetControlProfile(STEPMOTOR_PROFILE_DEFAULT);
-        (void)StepMotor_SetBallTargetX(STEPMOTOR_CAMERA_CENTER_X);
+        (void)StepMotor_SetBallTargetX(StepMotor_GetCameraCenterX());
     }
     menu_state = MENU_STATE_SELECT;
     Menu_RenderSelect();
@@ -739,8 +779,8 @@ void DisplayTask_Process(void)
     if (confirm_pressed != 0U) {
         if (running_item == MENU_ITEM_R2_LINE_TRACK) {
             Menu_StartTracking();
-        } else if (running_item == MENU_ITEM_R4_A_TO_B) {
-            Menu_StartQuestion4();
+        } else if (Menu_IsQuestionABItem(running_item) != 0U) {
+            Menu_StartQuestion4(running_item);
         } else {
             Menu_ReturnFromResult();
         }
@@ -752,6 +792,30 @@ void DisplayTask_Process(void)
 void DisplayTask_ReportTrackingFinished(void)
 {
     tracking_finished = 1U;
+}
+
+void DisplayTask_SetQuestion3PositiveX(uint16_t target_x)
+{
+    if (target_x <= STEPMOTOR_CAMERA_X_MAX) {
+        question3_positive_x = target_x;
+    }
+}
+
+void DisplayTask_SetQuestion3NegativeX(uint16_t target_x)
+{
+    if (target_x <= STEPMOTOR_CAMERA_X_MAX) {
+        question3_negative_x = target_x;
+    }
+}
+
+uint16_t DisplayTask_GetQuestion3PositiveX(void)
+{
+    return question3_positive_x;
+}
+
+uint16_t DisplayTask_GetQuestion3NegativeX(void)
+{
+    return question3_negative_x;
 }
 
 void DisplayTask_SetQuestion3BrakeTriggerX(uint16_t trigger_x)

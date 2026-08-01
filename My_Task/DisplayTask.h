@@ -29,6 +29,10 @@
 void StartDisplayTask(void *argument);
 void DisplayTask_Process(void);
 void DisplayTask_ReportTrackingFinished(void);
+void DisplayTask_SetQuestion3PositiveX(uint16_t target_x);
+void DisplayTask_SetQuestion3NegativeX(uint16_t target_x);
+uint16_t DisplayTask_GetQuestion3PositiveX(void);
+uint16_t DisplayTask_GetQuestion3NegativeX(void);
 void DisplayTask_SetQuestion3BrakeTriggerX(uint16_t trigger_x);
 void DisplayTask_SetQuestion3BrakeAngle(float angle_deg);
 void DisplayTask_SetQuestion3BrakeDuration(uint32_t duration_ms);

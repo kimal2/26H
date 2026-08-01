@@ -517,6 +517,9 @@
       { group: "第二问循迹", label: "原地转弯 PWM", key: "q2_turn_pwm", min: 0, max: 1000, step: 1, value: 200 },
       { group: "第二问循迹", label: "PID 差速上限", key: "q2_line_max", min: 0, max: 1000, step: 1, value: 350 },
       { group: "第二问循迹", label: "目标里程脉冲", key: "q2_odo", kind: "uint64", value: "42075" },
+      { group: "基础坐标", label: "中心坐标 X", key: "center_x", min: 0, max: 640, step: 1, value: 281 },
+      { group: "第三问坐标", label: "+5cm 坐标 X", key: "q3_pos_x", min: 0, max: 640, step: 1, value: 400 },
+      { group: "第三问坐标", label: "-5cm 坐标 X", key: "q3_neg_x", min: 0, max: 640, step: 1, value: 189 },
       { group: "滚球 PID", label: "比例", key: "ball_kp", min: -4, max: 4, step: 0.001, value: 0.001 },
       { group: "滚球 PID", label: "积分", key: "ball_ki", min: -4, max: 4, step: 0.01, value: 0.03 },
       { group: "滚球 PID", label: "微分", key: "ball_kd", min: -10, max: 10, step: 0.01, value: 0.05 },
@@ -538,7 +541,7 @@
       { group: "第三问去 -5cm", label: "Y 轴前馈", key: "q3n_kff", min: -500, max: 500, step: 1, value: 0 },
       { group: "第三问去 -5cm", label: "坐标低通系数", key: "q3n_ball_lpf", min: 0.01, max: 1, step: 0.01, value: 0.78 },
       { group: "第三问去 -5cm", label: "IMU 低通系数", key: "q3n_imu_lpf", min: 0.01, max: 1, step: 0.01, value: 0.01 },
-      { group: "第三问去 -5cm", label: "平衡角偏置", key: "q3n_bias", min: -30, max: 30, step: 0.1, value: -7.8 },
+      { group: "第三问去 -5cm", label: "平衡角偏置", key: "q3n_bias", min: -30, max: 30, step: 0.1, value: -7.7 },
       { group: "第三问去 -5cm", label: "运行速度 RPM", key: "q3n_motor_rpm", min: 0, max: 5000, step: 1, value: 150 },
       { group: "第三问去 -5cm", label: "最小角度", key: "q3n_motor_min", min: -30, max: 0, step: 0.5, value: -20 },
       { group: "第三问去 -5cm", label: "最大角度", key: "q3n_motor_max", min: 0, max: 30, step: 0.5, value: 30 },
@@ -887,7 +890,7 @@
     }
 
     function loadParameterValues() {
-      const defaultsVersion = "firmware-20260801-11";
+      const defaultsVersion = "firmware-20260801-12";
       if (localStorage.getItem("26h.defaultsVersion") !== defaultsVersion) {
         for (const parameter of parameters) {
           localStorage.removeItem(`26h.${parameter.key}`);
@@ -895,12 +898,13 @@
         localStorage.setItem("26h.defaultsVersion", defaultsVersion);
       }
 
-      const stableDefaultsVersion = "robot-stable-20260801-3";
+      const stableDefaultsVersion = "robot-stable-20260801-4";
       if (localStorage.getItem("26h.stableDefaultsVersion") !== stableDefaultsVersion) {
         const stableKeys = [
+          "center_x", "q3_pos_x", "q3_neg_x",
           "q3b_x", "q3b_angle", "q3b_ms", "q3b_rpm",
           "q3n_kp", "q3n_ki", "q3n_kd", "q3n_kff", "q3n_ball_lpf",
-          "q3n_imu_lpf", "q3n_motor_rpm", "q3n_motor_min", "q3n_motor_max",
+          "q3n_imu_lpf", "q3n_bias", "q3n_motor_rpm", "q3n_motor_min", "q3n_motor_max",
           "q3_kp", "q3_ki", "q3_kd", "q3_kff", "q3_ball_lpf",
           "q3_imu_lpf", "q3_motor_rpm", "q3_motor_min", "q3_motor_max",
           "q2_line_kp", "q2_line_ki", "q2_line_kd", "q2_base_pwm",

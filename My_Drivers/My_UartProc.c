@@ -19,7 +19,7 @@
 #define LINE_TELEMETRY_PERIOD_MS  50U
 #define FLASH_SETTINGS_ADDRESS 0x08060000UL
 #define FLASH_SETTINGS_MAGIC   0x48363253UL
-#define FLASH_SETTINGS_VERSION 4UL
+#define FLASH_SETTINGS_VERSION 5UL
 
 typedef enum {
     PARAM_RESULT_OK = 0,
@@ -75,6 +75,10 @@ typedef struct {
     FlashStepMotorTune_t step_q3_negative;
     FlashStepMotorTune_t step_q4;
     FlashStepMotorReturnTune_t q4_return;
+    uint16_t camera_center_x;
+    uint16_t q3_positive_x;
+    uint16_t q3_negative_x;
+    uint16_t reserved;
     uint16_t q3_brake_trigger_x;
     uint16_t q3_brake_speed_rpm;
     float q3_brake_angle_deg;
@@ -219,6 +223,9 @@ static void FlashSettings_Capture(FlashSettings_t *settings)
     FlashSettings_CopyReturnTuneFromRuntime(&settings->q4_return,
                                             &StepMotorQuestion4ReturnTune);
 
+    settings->camera_center_x = StepMotor_GetCameraCenterX();
+    settings->q3_positive_x = DisplayTask_GetQuestion3PositiveX();
+    settings->q3_negative_x = DisplayTask_GetQuestion3NegativeX();
     settings->q3_brake_trigger_x =
         DisplayTask_GetQuestion3BrakeTriggerX();
     settings->q3_brake_speed_rpm =
@@ -266,6 +273,9 @@ static void FlashSettings_Apply(const FlashSettings_t *settings)
     FlashSettings_CopyReturnTuneToRuntime(&StepMotorQuestion4ReturnTune,
                                           &settings->q4_return);
 
+    (void)StepMotor_SetCameraCenterX(settings->camera_center_x);
+    DisplayTask_SetQuestion3PositiveX(settings->q3_positive_x);
+    DisplayTask_SetQuestion3NegativeX(settings->q3_negative_x);
     DisplayTask_SetQuestion3BrakeTriggerX(settings->q3_brake_trigger_x);
     DisplayTask_SetQuestion3BrakeSpeed(settings->q3_brake_speed_rpm);
     DisplayTask_SetQuestion3BrakeAngle(settings->q3_brake_angle_deg);
@@ -539,6 +549,30 @@ static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
     } else if (strcmp(key, "q4_line_max") == 0) {
         return Bluetooth_SetTrackingParameter(&TrackingQuestion4Tune, "max",
                                               value);
+    } else if ((strcmp(key, "center_x") == 0) ||
+               (strcmp(key, "camera_center_x") == 0)) {
+        if ((Bluetooth_ValueInRange(
+                 value, 0.0f, (float)STEPMOTOR_CAMERA_X_MAX) == 0U) ||
+            ((float)(uint16_t)value != value) ||
+            !StepMotor_SetCameraCenterX((uint16_t)value)) {
+            return PARAM_RESULT_RANGE;
+        }
+    } else if ((strcmp(key, "q3_pos_x") == 0) ||
+               (strcmp(key, "q3_positive_x") == 0)) {
+        if ((Bluetooth_ValueInRange(
+                 value, 0.0f, (float)STEPMOTOR_CAMERA_X_MAX) == 0U) ||
+            ((float)(uint16_t)value != value)) {
+            return PARAM_RESULT_RANGE;
+        }
+        DisplayTask_SetQuestion3PositiveX((uint16_t)value);
+    } else if ((strcmp(key, "q3_neg_x") == 0) ||
+               (strcmp(key, "q3_negative_x") == 0)) {
+        if ((Bluetooth_ValueInRange(
+                 value, 0.0f, (float)STEPMOTOR_CAMERA_X_MAX) == 0U) ||
+            ((float)(uint16_t)value != value)) {
+            return PARAM_RESULT_RANGE;
+        }
+        DisplayTask_SetQuestion3NegativeX((uint16_t)value);
     } else if (strcmp(key, "ball_kp") == 0) {
         if (Bluetooth_ValueInRange(value, -100.0f, 100.0f) == 0U) {
             return PARAM_RESULT_RANGE;
@@ -669,7 +703,8 @@ static ParameterResult_t Bluetooth_SetParameter(const char *key, float value)
             return PARAM_RESULT_RANGE;
         }
         StepMotorQuestion3NegativeTune.feedforward_lpf_alpha = value;
-    } else if (strcmp(key, "q3n_bias") == 0) {
+    } else if ((strcmp(key, "q3n_bias") == 0) ||
+               (strcmp(key, "q3_neg_bias") == 0)) {
         if (Bluetooth_ValueInRange(
                 value,
                 STEPMOTOR_TUBE_ANGLE_HARD_MIN_DEG,
